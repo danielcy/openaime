@@ -1,3 +1,3 @@
-from ._version import __version__
+"""AIME: Agent Iterative Multi-step Execution framework."""
 
-__all__ = ["__version__"]
+__version__ = "0.1.0"
