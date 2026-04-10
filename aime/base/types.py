@@ -55,10 +55,21 @@ class PlannerOutput:
         DISPATCH_SUBTASK = "dispatch_subtask"
         COMPLETE_GOAL = "complete_goal"
         WAIT = "wait"
+        ADD_SUBTASK = "add_subtask"
+        MODIFY_SUBTASK = "modify_subtask"
+        DELETE_SUBTASK = "delete_subtask"
+        MARK_FAILED = "mark_failed"
 
     action: Action
     subtask_id: Optional[str] = None
     summary: Optional[str] = None
+    # For modify/delete/mark_failed
+    task_id: Optional[str] = None
+    # For mark_failed
+    message: Optional[str] = None
+    # For add/modify subtask
+    description: Optional[str] = None
+    completion_criteria: Optional[str] = None
 
 
 @dataclass
@@ -212,3 +223,26 @@ class ProgressList:
     async def get_all_tasks(self) -> List[Task]:
         async with self._lock:
             return list(self._tasks.values())
+
+    async def modify_task(
+        self,
+        task_id: str,
+        description: Optional[str] = None,
+        completion_criteria: Optional[str] = None,
+    ) -> Optional[Task]:
+        async with self._lock:
+            task = self._tasks.get(task_id)
+            if task is not None:
+                if description is not None:
+                    task.description = description
+                if completion_criteria is not None:
+                    task.completion_criteria = completion_criteria
+                task.updated_at = datetime.now()
+            return task
+
+    async def delete_task(self, task_id: str) -> bool:
+        async with self._lock:
+            if task_id in self._tasks:
+                del self._tasks[task_id]
+                return True
+            return False
