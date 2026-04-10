@@ -147,11 +147,13 @@ class AimeTUI(App):
         """
         # Get tasks from OpenAime's progress module
         if self._openaime.progress:
-            # We need to get the full task list
-            # This assumes ProgressModule has a way to get all tasks
-            # For now, we'll use a placeholder - in reality we'd need
-            # to add a method to ProgressModule to get all tasks
-            pass
+            # Since this is a sync method, create an async task to update progress
+            async def update_progress_async():
+                tasks = await self._openaime.progress.get_all_tasks()
+                self.update_progress(tasks)
+
+            import asyncio
+            asyncio.create_task(update_progress_async())
 
     def _update_status_from_event(self, event: AimeEvent) -> None:
         """
