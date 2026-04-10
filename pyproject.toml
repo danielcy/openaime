@@ -11,7 +11,12 @@ dependencies = [
     "rich>=13.0",
     "aiofiles>=23.0",
     "mcp>=1.0",
+    "volcengine-python-sdk[ark]>=5.0.23",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aime", "aime_tui"]
 
 [project.optional-dependencies]
 dev = [
@@ -19,6 +24,10 @@ dev = [
     "pytest-cov>=5.0",
     "black>=24.0",
     "ruff>=0.5",
+]
+tui = [
+    "textual>=0.43.0",
+    "rich>=13.0.0",
 ]
 
 [tool.pytest.ini_options]
