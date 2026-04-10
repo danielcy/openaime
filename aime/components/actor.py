@@ -166,7 +166,7 @@ class DynamicActor:
         self._history = [
             Message(
                 role="system",
-                content=self._build_system_prompt()
+                content=await self._build_system_prompt()
             )
         ]
 
@@ -277,11 +277,12 @@ class DynamicActor:
             summary=f"Reached maximum iterations ({max_iterations}) without completing",
         )
 
-    def _build_system_prompt(self) -> str:
+    async def _build_system_prompt(self) -> str:
         """
         Build the system prompt for this actor, including:
         - Role (from task specialization)
         - Task description and completion criteria
+        - Global progress (all tasks with status) to avoid repeating work
         - Available tools
         - ReAct instructions
 
@@ -308,11 +309,30 @@ Python Version: {platform.python_version()}
 Current Time: {datetime.now().isoformat()}
 """
 
+        # Add global progress context - show all tasks and their current status
+        # This prevents the actor from repeating work already done by other actors
+        all_tasks = await self.progress.get_all_tasks()
+        progress_info = "Global Progress - All Tasks:\n"
+        for task in all_tasks:
+            status_mark = "✓" if task.status == TaskStatus.COMPLETED else "○"
+            progress_info += f"{status_mark} [{task.status.value}] {task.description}"
+            if task.status == TaskStatus.COMPLETED and task.message:
+                progress_info += f" - Result: {task.message}"
+            progress_info += "\n"
+
+        progress_info += """
+Important Guidance:
+- If the work for your task has already been partially or fully completed by other actors, build on top of the existing work instead of repeating it
+- Check the artifacts created by previous tasks before starting your work
+- Do not re-do what is already done
+"""
+
         return (
             f"Role: {self.role}\n\n"
             f"Your Task: {self.task.description}\n"
             f"Completion Criteria: {self.task.completion_criteria}\n\n"
             f"{env_info}\n"
+            f"{progress_info}\n"
             "Available Tools:\n"
             f"{tools_description}\n\n"
             "ReAct Instructions:\n"
