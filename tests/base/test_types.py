@@ -1,5 +1,6 @@
 import pytest
-from aime.base.types import TaskStatus, Task, ProgressList
+import time
+from aime.base.types import TaskStatus, Task, ProgressList, ActorRecord
 
 
 def test_task_status_enum():
@@ -82,3 +83,30 @@ async def test_subscribe():
     assert updates[0].task_id == task.id
     assert updates[0].new_status == TaskStatus.COMPLETED
     await unsubscribe()
+
+
+def test_actor_record_creation():
+    record = ActorRecord(
+        actor_id="test-actor-1",
+        role="Python Code Expert",
+        description="Specializes in writing and debugging Python code",
+        tool_bundles=["file_system", "python_execution"]
+    )
+    assert record.actor_id == "test-actor-1"
+    assert record.role == "Python Code Expert"
+    assert "Python" in record.description
+    assert len(record.tool_bundles) == 2
+    assert record.created_at is not None
+
+
+def test_actor_record_update_last_used():
+    record = ActorRecord(
+        actor_id="test-actor-1",
+        role="Python Code Expert",
+        description="Specializes in Python",
+        tool_bundles=["file_system"]
+    )
+    original_time = record.last_used_at
+    time.sleep(0.001)
+    record.update_last_used()
+    assert record.last_used_at > original_time

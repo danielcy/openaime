@@ -69,6 +69,21 @@ class ActorResult:
     artifacts: List[ArtifactReference] = field(default_factory=list)
 
 
+@dataclass
+class ActorRecord:
+    """Metadata record for a created actor that can be reused."""
+    actor_id: str
+    role: str  # actor name/role description (ρ_t from paper)
+    description: str  # description of what this actor is good for
+    tool_bundles: List[str]  # list of tool bundle names this actor has
+    created_at: datetime = field(default_factory=datetime.now)
+    last_used_at: datetime = field(default_factory=datetime.now)
+
+    def update_last_used(self) -> None:
+        """Update last used timestamp."""
+        self.last_used_at = datetime.now()
+
+
 class ProgressList:
     """Hierarchical thread-safe task progress list."""
 
@@ -107,15 +122,26 @@ class ProgressList:
         status: TaskStatus,
         message: Optional[str] = None,
     ) -> Optional[Task]:
+        # Do all the state changes inside the lock
+        task_update: Optional[TaskUpdate] = None
+        subscribers_copy: list[Callable[[TaskUpdate], None]] = []
+
         async with self._lock:
             task = self._tasks.get(task_id)
-            if task:
+            if task is not None:
                 old_status = task.status
                 task.update_status(status, message)
                 task_update = TaskUpdate(task_id, old_status, status, message)
-                for subscriber in self._subscribers:
-                    subscriber(task_update)
-            return task
+                # Make a copy of subscribers before releasing the lock
+                # This prevents deadlock if subscriber tries to acquire the lock itself
+                subscribers_copy = list(self._subscribers)
+
+        # Invoke callbacks outside the lock to avoid deadlock
+        if task_update is not None:
+            for subscriber in subscribers_copy:
+                subscriber(task_update)
+
+        return task
 
     async def add_artifact(
         self,
@@ -183,7 +209,6 @@ class ProgressList:
                     self._subscribers.remove(callback)
         return unsubscribe
 
-    @property
-    async def all_tasks(self) -> List[Task]:
+    async def get_all_tasks(self) -> List[Task]:
         async with self._lock:
             return list(self._tasks.values())
