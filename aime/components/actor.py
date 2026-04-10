@@ -108,6 +108,8 @@ class DynamicActor:
                     await self.progress.update_task_status(
                         self.task.id, TaskStatus.COMPLETED, result.summary
                     )
+                    async with self._lock:
+                        self._running = False
                     return result
                 else:
                     logger.warning(f"Actor {self.actor_id} task {self.task.id} failed: {result.summary}")
@@ -136,6 +138,8 @@ class DynamicActor:
         await self.progress.update_task_status(
             self.task.id, TaskStatus.FAILED, error_msg
         )
+        async with self._lock:
+            self._running = False
         return ActorResult(
             task_id=self.task.id,
             status=TaskStatus.FAILED,

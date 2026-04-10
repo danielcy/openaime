@@ -179,8 +179,12 @@ If no existing actor is suitable (need to create new), output null.
         # Check if we can reuse an existing actor
         existing_actor = await self._select_actor_for_task(task)
         if existing_actor is not None:
-            # Update the task on the reused actor
+            # Update the task on the reused actor and reset state
             existing_actor.task = task
+            async with existing_actor._lock:
+                existing_actor._running = False
+            existing_actor._history.clear()
+            logger.info(f"ActorFactory reusing existing actor: {existing_actor.actor_id}")
             return existing_actor
 
         # Need to create new actor
