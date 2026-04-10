@@ -90,6 +90,9 @@ class ProgressPane(Tree):
         # Add the task node
         task_node = parent_node.add(label, data=task)
 
+        # Add task details as expandable nodes
+        self._add_task_details(task_node, task)
+
         # Expand in-progress tasks by default
         if task.status == TaskStatus.IN_PROGRESS:
             task_node.expand()
@@ -98,6 +101,19 @@ class ProgressPane(Tree):
         child_tasks = children_map.get(task.id, [])
         for child_task in child_tasks:
             self._add_task_to_node(task_node, child_task, children_map)
+
+    def _add_task_details(self, task_node: TreeNode, task: Task) -> None:
+        """Add task details as expandable child nodes.
+
+        Args:
+            task_node: The task node to add details to.
+            task: The task to get details from.
+        """
+        details = self._get_task_details(task)
+        for detail in details:
+            # Add each detail as an unselectable, non-expandable node
+            # These won't have any data associated with them
+            task_node.add(detail)
 
     def _build_task_label(self, task: Task) -> Text:
         """Build a rich text label for a task.
