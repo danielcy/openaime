@@ -209,9 +209,12 @@ class EventStream(RichLog):
         timestamp = timestamp.split(".")[0]  # Drop milliseconds
         parts.append(Text(f"[{timestamp}] ", style="dim"))
 
-        # Emoji and event type
-        event_type_name = event.event_type.value.replace("_", " ").upper()
-        parts.append(Text(f"{emoji} {event_type_name}: ", style=f"bold {color}"))
+        # For tool events, don't display event type name here since it's already
+        # included in the special content formatting with the tool name
+        if event.event_type not in {EventType.ACTOR_TOOL_CALLED, EventType.ACTOR_TOOL_FINISHED}:
+            # Emoji and event type
+            event_type_name = event.event_type.value.replace("_", " ").upper()
+            parts.append(Text(f"{emoji} {event_type_name}: ", style=f"bold {color}"))
 
         return Text.assemble(*parts)
 
