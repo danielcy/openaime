@@ -466,7 +466,6 @@ class EventStream(RichLog):
 
         # Format: 🔧{tool_name}
         #         {parameters truncated to 100 chars}
-        parts.append(Text(""))  # New line
         parts.append(Text(f"🔧{tool_name}\n", style="bold accent"))
 
         if parameters:
@@ -506,7 +505,6 @@ class EventStream(RichLog):
 
         # Format: 📝{tool_name}
         #         {result truncated to 200 chars}
-        parts.append(Text(""))  # New line
         parts.append(Text(f"📝{tool_name}\n", style="bold accent"))
 
         if result:
