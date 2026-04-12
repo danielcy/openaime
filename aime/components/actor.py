@@ -464,6 +464,15 @@ Current Time: {datetime.now().isoformat()}
                 progress_info += f" - Result: {task.message}"
             progress_info += "\n"
 
+        # Add completed task results section
+        completed_tasks_with_results = [task for task in all_tasks if task.status == TaskStatus.COMPLETED and task.message]
+        if completed_tasks_with_results:
+            progress_info += "\n## Completed Task Results\n"
+            for task in completed_tasks_with_results:
+                progress_info += f"### Task: {task.description}\n\n"
+                progress_info += f"{task.message}\n\n"
+                progress_info += "---\n"
+
         progress_info += """
 Important Guidance:
 - If the work for your task has already been partially or fully completed by other actors, build on top of the existing work instead of repeating it
