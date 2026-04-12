@@ -55,37 +55,72 @@ EventStream {
 
 /* ProgressPane - inherits from Tree */
 ProgressPane {
-  width: 30%;
+  width: 100%;
+  background: $panel;
+  border: solid $border;
+  padding: 1;
+  margin-bottom: 1;
+}
+
+/* ActorPane - inherits from Tree */
+ActorPane {
+  width: 100%;
   background: $panel;
   border: solid $border;
   padding: 1;
 }
 
+/* Right sidebar container with both panes */
+#right-sidebar {
+  width: 30%;
+  height: 1fr;
+  margin-left: 1;
+}
+
+/* For horizontal layout - EventStream and right sidebar */
+Horizontal EventStream {
+  width: 70%;
+  background: $background;
+  border: solid $border;
+  padding: 1;
+  margin-right: 0;
+}
+
 /* For vertical layout */
 Vertical EventStream {
   width: 100%;
-  height: 70%;
+  height: 50%;
   margin-right: 0;
   margin-bottom: 1;
 }
 
 Vertical ProgressPane {
   width: 100%;
-  height: 30%;
+  height: 25%;
+  padding: 1;
+  margin-bottom: 1;
+}
+
+Vertical ActorPane {
+  width: 100%;
+  height: 25%;
   padding: 1;
 }
 
-/* Tree (ProgressPane) specific styling */
-ProgressPane Tree {
+/* Tree (ProgressPane and ActorPane) specific styling */
+ProgressPane Tree,
+ActorPane Tree {
   background: transparent;
 }
 
-ProgressPane TreeNode {
+ProgressPane TreeNode,
+ActorPane TreeNode {
   padding: 0 1;
 }
 
 /* Highlight the currently selected tree node */
-ProgressPane > Tree > TreeNode.highlight {
+ProgressPane > Tree > TreeNode.highlight,
+ActorPane > Tree > TreeNode.highlight {
   background: $accent;
   color: $text;
 }
