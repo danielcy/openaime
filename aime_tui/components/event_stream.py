@@ -144,6 +144,7 @@ class EventStream(RichLog):
             EventType.ACTOR_TOOL_CALLED: "🔧",
             EventType.ACTOR_TOOL_FINISHED: "📝",
             EventType.ACTOR_FINISHED: "🤖",
+            EventType.ACTOR_SKILL_LOADED: "🎯",
             # Progress/Task events
             EventType.TASK_STATUS_CHANGED: "📊",
             # Overall execution
