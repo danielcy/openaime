@@ -38,6 +38,7 @@ from aime.components.actor_factory import ActorFactory
 from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
 from aime.base.types import PlannerOutput, Task, TaskStatus, ChatMessage
+from aime.base.skill import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +73,12 @@ class OpenAime:
         log_level: None | Literal["verbose", "debug"] = "verbose",
         debug: Optional[bool] = None,  # Backward compatibility
         toolkit: Optional[Toolkit] = None,
-       tool_bundles: Optional[list[ToolBundle]] = None,
+        tool_bundles: Optional[list[ToolBundle]] = None,
         knowledge: Optional[BaseKnowledge] = None,
         event_callback: Optional[EventCallback] = None,
+        # New skills parameters
+        skills_path: Optional[list[str]] = None,
+        auto_discover_skills: bool = True,
     ):
         """
         Initialize the OpenAime instance.
@@ -127,6 +131,20 @@ class OpenAime:
             raise ValueError(f"Workspace directory does not exist: {self.workspace}")
         if not os.path.isdir(self.workspace):
             raise ValueError(f"Workspace must be a directory: {self.workspace}")
+
+        # Setup skills - build search paths
+        if auto_discover_skills:
+            # Default search paths
+            default_paths = [
+                "~/.openaime/skills",
+                os.path.join(self.workspace, "skills"),
+            ]
+            # Add user-provided paths
+            if skills_path:
+                default_paths.extend(skills_path)
+            self.skill_registry = SkillRegistry(default_paths)
+        else:
+            self.skill_registry = None
 
     def _emit_event(self, event_type: EventType, data: dict[str, Any]) -> None:
         """
@@ -266,6 +284,7 @@ class OpenAime:
                 base_llm=self.llm,
                 actor_config=self.config.actor,
                 tool_bundles=self.tool_bundles,
+                skill_registry=self.skill_registry,
             )
 
             # Register all individual tools from toolkit as a default bundle
