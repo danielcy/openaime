@@ -29,6 +29,7 @@ class EventType(str, Enum):
 
     # Actor level events
     ACTOR_STARTED = "actor_started"
+    ACTOR_SKILL_LOADED = "actor_skill_loaded"
     ACTOR_THOUGHT = "actor_thought"
     ACTOR_TOOL_CALLED = "actor_tool_called"
     ACTOR_TOOL_FINISHED = "actor_tool_finished"

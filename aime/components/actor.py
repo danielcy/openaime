@@ -108,6 +108,14 @@ class DynamicActor:
                 "task_id": self.task.id,
                 "role": self.role,
             })
+            # Emit skill loaded event if any skills are loaded
+            if self._matched_skills:
+                skill_names = [skill.metadata.name for skill in self._matched_skills]
+                self._emit_event(EventType.ACTOR_SKILL_LOADED, {
+                    "actor_id": self.actor_id,
+                    "task_id": self.task.id,
+                    "skills": skill_names,
+                })
         await self.progress.update_task_status(
             self.task.id, TaskStatus.IN_PROGRESS, f"Actor {self.actor_id} started execution"
         )
