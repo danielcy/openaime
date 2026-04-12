@@ -17,10 +17,10 @@ from textual.widgets import Header, Footer
 
 from aime_tui.config import TUIConfig
 from aime_tui.theme import get_theme
-from aime_tui.components import EventStream, ProgressPane, InputBox, StatusBar
+from aime_tui.components import EventStream, ProgressPane, ActorPane, InputBox, StatusBar
 from aime.base.events import AimeEvent, EventType
 from aime.aime import OpenAime
-from aime.base.types import Task
+from aime.base.types import Task, ActorRecord
 
 
 class AimeTUI(App):
@@ -68,6 +68,7 @@ class AimeTUI(App):
         # Components (initialized in compose)
         self._event_stream: Optional[EventStream] = None
         self._progress_pane: Optional[ProgressPane] = None
+        self._actor_pane: Optional[ActorPane] = None
         self._input_box: Optional[InputBox] = None
         self._status_bar: Optional[StatusBar] = None
 
@@ -88,23 +89,24 @@ class AimeTUI(App):
         """
         yield Header()
 
-        # Status bar at the top
-        # self._status_bar = StatusBar(self._config, self._openaime.workspace)
-        # yield self._status_bar
-
         # Main content area - layout depends on configuration
         if self._config.layout == "horizontal":
             with Horizontal():
                 self._event_stream = EventStream(self._config, self._openaime.workspace)
                 yield self._event_stream
-                self._progress_pane = ProgressPane(self._config)
-                yield self._progress_pane
+                with Vertical(id="right-sidebar"):
+                    self._progress_pane = ProgressPane(self._config)
+                    yield self._progress_pane
+                    self._actor_pane = ActorPane(self._config)
+                    yield self._actor_pane
         else:  # vertical
             with Vertical():
                 self._event_stream = EventStream(self._config, self._openaime.workspace)
                 self._progress_pane = ProgressPane(self._config)
+                self._actor_pane = ActorPane(self._config)
                 yield self._event_stream
                 yield self._progress_pane
+                yield self._actor_pane
 
         # Input box at the bottom
         self._input_box = InputBox(
@@ -143,6 +145,10 @@ class AimeTUI(App):
         if self._progress_pane and event.event_type == EventType.TASK_STATUS_CHANGED:
             self._update_progress_from_event(event)
 
+        # Update actor pane when actors start (actors are created/started)
+        if self._actor_pane and event.event_type == EventType.ACTOR_STARTED:
+            self._update_actors()
+
         # Update status bar based on event type
         self._update_status_from_event(event)
 
@@ -162,6 +168,13 @@ class AimeTUI(App):
 
             import asyncio
             asyncio.create_task(update_progress_async())
+
+    def _update_actors(self) -> None:
+        """
+        Update actor pane with the latest list of actors.
+        """
+        actors = self._openaime.actor_factory.list_actors()
+        self.update_actors(actors)
 
     def _update_status_from_event(self, event: AimeEvent) -> None:
         """
@@ -259,3 +272,15 @@ class AimeTUI(App):
         """
         if self._progress_pane:
             self._progress_pane.update_progress(tasks)
+
+    def update_actors(self, actors: list[ActorRecord]) -> None:
+        """
+        Update the actor pane with the latest list of actors.
+
+        Can be called manually to refresh the actors display.
+
+        Args:
+            actors: List of all actors to display
+        """
+        if self._actor_pane:
+            self._actor_pane.update_actors(actors)

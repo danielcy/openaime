@@ -4,7 +4,7 @@ Open-Source implementation of the AIME (Autonomous Interactive Execution Engine)
 
 ## Project Status
 
-✅ **All major features implemented and tested** (160/160 tests passing)
+✅ **All major features implemented and tested** (193/193 tests passing)
 
 ## Implemented Features
 
@@ -88,9 +88,41 @@ Where:
 Files:
 - `aime/components/actor.py` - `_build_system_prompt` implements this exactly
 
+### 7. Terminal User Interface (TUI)
+
+Interactive terminal UI for real-time monitoring and control:
+- **Event Stream Pane**: Real-time event display with emoji icons, color coding, and JSON syntax highlighting
+- **Progress Pane**: Tree view of task hierarchy with status tracking
+- **Status Bar**: Execution metrics (elapsed time, iterations)
+- **Input Box**: User interaction for entering goals and commands
+- **Two layouts**: Horizontal (events 70% + progress 30%) and vertical (events 70% + progress 30%)
+- **Custom themes**: Based on Claude Code's clean aesthetic
+
+Files:
+- `aime_tui/app.py` - Main TUI application class
+- `aime_tui/components/event_stream.py` - Event stream with rich formatting
+- `aime_tui/components/progress_pane.py` - Task progress tree view
+- `aime_tui/components/input_box.py` - User input handling
+- `aime_tui/assets/aime.tcss` - TCSS styling
+
+### 8. Session Multi-turn Interaction
+
+Support for retaining conversation context across multiple `run()` calls in the same OpenAime instance:
+- **Chat History**: Maintains `user → assistant` message history between runs
+- **Context Retention**: Planner includes full chat history in system prompt so LLM understands previous work
+- **Execution Summary**: After each run completes, LLM generates a concise summary of what was accomplished, which is saved to chat history
+- **Flexible Usage**: Start a new session with `new_goal=True` or continue existing session with `new_goal=False` (default)
+- `clear_session()` method to manually reset conversation
+- **Backward Compatible**: All existing code works unchanged - new parameters have default values
+
+Files:
+- `aime/base/types.py` - Added `ChatMessage` dataclass
+- `aime/aime.py` - OpenAime: added chat history, lazy component initialization for reuse, `clear_session()`, `_generate_execution_summary()`
+- `aime/components/planner.py` - Planner: added chat history, includes history in prompt, `add_user_message()`, `add_assistant_message()`
+
 ## Testing
 
-- **Total tests**: 160
+- **Total tests**: 193
 - **All tests passing**: ✓ Yes
 - **Test coverage**: Comprehensive coverage for all new features
 
@@ -108,7 +140,7 @@ aime/
 │   ├── knowledge.py        # Knowledge base abstraction
 │   ├── llm.py              # LLM base abstraction
 │   ├── tool.py             # Tool base abstraction, Toolkit, ToolBundle
-│   └── types.py            # Dataclasses: Task, ProgressList, ActorRecord, etc
+│   └── types.py            # Dataclasses: Task, ProgressList, ActorRecord, ChatMessage, etc
 ├── components/             # Core components
 │   ├── actor.py            # DynamicActor with ReAct loop
 │   ├── actor_factory.py   # ActorFactory with actor reuse
@@ -119,11 +151,17 @@ aime/
 │   └── tools/              # Tool providers (MCP)
 ├── tools/                  # Builtin tools
 │   └── builtin/            # File read/write/update, shell exec
-└── aime.py                 # Main OpenAime entry point
+├── aime.py                 # Main OpenAime entry point
+└── aime_tui/               # Terminal User Interface
+    ├── app.py             # Main TUI application
+    ├── components/        # TUI components (EventStream, ProgressPane, InputBox, StatusBar)
+    ├── assets/            # Styles (aime.tcss)
+    └── config.py          # TUI configuration
 ```
 
 ## Quick Start
 
+### Single Goal Execution
 ```python
 import asyncio
 from aime.aime import OpenAime
@@ -143,6 +181,33 @@ aime = OpenAime(
 # Run autonomous agent to achieve goal
 result = await aime.run("Fix the bug in the login module")
 print(result)
+```
+
+### Multi-turn Interaction with Session
+```python
+import asyncio
+from aime.aime import OpenAime
+from aime.base.config import AimeConfig
+from aime.providers.llm.anthropic import AnthropicLLM
+
+llm = AnthropicLLM(api_key="your-api-key")
+aime = OpenAime(
+    config=AimeConfig(),
+    llm=llm,
+    workspace="./your-project-directory"
+)
+
+# First request
+result1 = await aime.run("Add a login endpoint to app.py")
+print(result1)
+
+# Second request - retains context from the first run!
+result2 = await aime.run("Now add JWT authentication to this endpoint")
+print(result2)
+
+# Start a fresh conversation if needed
+aime.clear_session()
+result3 = await aime.run("A completely new task here", new_goal=True)
 ```
 
 ## Configuration
