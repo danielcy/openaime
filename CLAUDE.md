@@ -120,9 +120,23 @@ Files:
 - `aime/aime.py` - OpenAime: added chat history, lazy component initialization for reuse, `clear_session()`, `_generate_execution_summary()`
 - `aime/components/planner.py` - Planner: added chat history, includes history in prompt, `add_user_message()`, `add_assistant_message()`
 
+### 9. Skills System (Claude Code compatible)
+
+Modular capability extension system with progressive disclosure and hot-reload:
+- **Progressive Disclosure**: Only metadata loaded at startup (~100 tokens/skill), full instructions loaded on match, resources loaded on-demand
+- **Hot-Reload**: Automatically detects changes to skill files, no restart required
+- **Default Search Paths**: `~/.openaime/skills` (global user skills) and `{workspace}/skills` (project-specific skills)
+- **Automatic Matching**: LLM matches skills to task description automatically
+- **Claude Compatible**: Uses same SKILL.md format as Claude Code skills
+- **Path Resolution**: Automatically resolves relative paths for references/scripts
+
+Files:
+- `aime/base/skill.py` - SkillMetadata, Skill, SkillRegistry with hot-reload
+- Modified: `aime/aime.py`, `aime/components/actor_factory.py`, `aime/components/actor.py`
+
 ## Testing
 
-- **Total tests**: 193
+- **Total tests**: 207
 - **All tests passing**: ✓ Yes
 - **Test coverage**: Comprehensive coverage for all new features
 
@@ -140,7 +154,8 @@ aime/
 │   ├── knowledge.py        # Knowledge base abstraction
 │   ├── llm.py              # LLM base abstraction
 │   ├── tool.py             # Tool base abstraction, Toolkit, ToolBundle
-│   └── types.py            # Dataclasses: Task, ProgressList, ActorRecord, ChatMessage, etc
+│   ├── types.py            # Dataclasses: Task, ProgressList, ActorRecord, ChatMessage, etc
+│   └── skill.py            # SkillMetadata, Skill, SkillRegistry with hot-reload
 ├── components/             # Core components
 │   ├── actor.py            # DynamicActor with ReAct loop
 │   ├── actor_factory.py   # ActorFactory with actor reuse
@@ -208,6 +223,32 @@ print(result2)
 # Start a fresh conversation if needed
 aime.clear_session()
 result3 = await aime.run("A completely new task here", new_goal=True)
+```
+
+### With Skills
+
+```python
+import asyncio
+from aime.aime import OpenAime
+from aime.base.config import AimeConfig
+from aime.providers.llm.anthropic import AnthropicLLM
+
+llm = AnthropicLLM(api_key="your-api-key")
+aime = OpenAime(
+    config=AimeConfig(),
+    llm=llm,
+    workspace="./your-project-directory",
+    # Skills are auto-discovered from:
+    # - ~/.openaime/skills
+    # - ./your-project-directory/skills
+    auto_discover_skills=True,
+    # Add extra custom skills paths
+    # skills_path=["./my-custom-skills"],
+)
+
+# When you run a task that matches a skill, it's automatically activated
+result = await aime.run("Review the Python code in src/ and check for style issues")
+# If you have a "python-code-review" skill, it will be automatically loaded and used
 ```
 
 ## Configuration
