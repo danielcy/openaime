@@ -310,18 +310,27 @@ class EventStream(RichLog):
 
         # Tool name
         tool_name = event.data.get("tool_name", "unknown")
-        parts.append(Text(f"\n  Tool: ", style="bold"))
-        parts.append(Text(tool_name, style="bold accent"))
+        parameters = event.data.get("parameters", {})
 
-        # Tool arguments
-        args = event.data.get("args", {})
-        if args:
-            parts.append(Text("\n  Args: ", style="bold"))
-            if isinstance(args, dict):
-                parts.append("\n")
-                parts.append(self._format_json(args))
-            else:
-                parts.append(Text(str(args)))
+        # Format: 🔧{tool_name}
+        #         {parameters truncated to 100 chars}
+        parts.append(Text(""))  # New line
+        parts.append(Text(f"🔧{tool_name}\n", style="bold accent"))
+
+        if parameters:
+            # Convert to json string
+            try:
+                json_str = json.dumps(parameters, ensure_ascii=False)
+                # Truncate to max 100 characters
+                if len(json_str) > 100:
+                    json_str = json_str[:97] + "..."
+                parts.append(self._format_multiline_text(json_str))
+            except Exception:
+                # Fallback to string representation
+                str_val = str(parameters)
+                if len(str_val) > 100:
+                    str_val = str_val[:97] + "..."
+                parts.append(Text(str_val))
 
         return parts
 
@@ -341,35 +350,19 @@ class EventStream(RichLog):
 
         # Tool name
         tool_name = event.data.get("tool_name", "unknown")
-        parts.append(Text(f"\n  Tool: ", style="bold"))
-        parts.append(Text(tool_name, style="bold accent"))
+        result = event.data.get("content", "")
 
-        # Result
-        result = event.data.get("result", "")
+        # Format: 📝{tool_name}
+        #         {result truncated to 200 chars}
+        parts.append(Text(""))  # New line
+        parts.append(Text(f"📝{tool_name}\n", style="bold accent"))
+
         if result:
-            parts.append(Text("\n  Result: ", style="bold"))
-
-            # Try to detect and format JSON
-            if isinstance(result, (dict, list)):
-                parts.append("\n")
-                parts.append(self._format_json(result))
-            elif isinstance(result, str):
-                # Check if string is JSON
-                stripped_result = result.strip()
-                if (stripped_result.startswith("{") and stripped_result.endswith("}")) or \
-                   (stripped_result.startswith("[") and stripped_result.endswith("]")):
-                    try:
-                        parsed = json.loads(stripped_result)
-                        parts.append("\n")
-                        parts.append(self._format_json(parsed))
-                    except (json.JSONDecodeError, TypeError, ValueError):
-                        # Not valid JSON, just add as text with indentation
-                        parts.append(self._format_multiline_text(result))
-                else:
-                    # Regular text, format with indentation
-                    parts.append(self._format_multiline_text(result))
-            else:
-                parts.append(Text(str(result)))
+            # Truncate to max 200 characters
+            result_str = str(result)
+            if len(result_str) > 200:
+                result_str = result_str[:197] + "..."
+            parts.append(self._format_multiline_text(result_str))
 
         return parts
 
