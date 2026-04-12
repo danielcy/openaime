@@ -1,4 +1,5 @@
 import pytest
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from aime.components.actor_factory import ActorFactory
@@ -22,6 +23,7 @@ class MockLLM(BaseLLM):
         self,
         messages: list[Message],
         temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         return LLMResponse(content=self.response_content)
 

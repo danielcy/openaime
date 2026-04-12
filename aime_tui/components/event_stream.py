@@ -57,11 +57,12 @@ class EventStream(RichLog):
         if is_long_content:
             self.write(Text(""))
 
-        # Build the rich text representation of the event
-        event_text = self._format_event(event)
+        # Write the header (timestamp, emoji, event type)
+        header_text = self._format_header(event)
+        self.write(header_text)
 
-        # Add to the log
-        self.write(event_text)
+        # Handle special formatting that may contain Syntax objects
+        self._write_special_content(event)
 
         # Add spacing after long content
         if is_long_content:
@@ -187,49 +188,58 @@ class EventStream(RichLog):
 
         return "default"
 
-    def _format_event(self, event: AimeEvent) -> Text:
-        """Format an AimeEvent into a rich Text object.
+    def _format_header(self, event: AimeEvent) -> Text:
+        """Format the header line with timestamp, emoji, and event type.
 
         Args:
             event: The event to format.
 
         Returns:
-            A rich Text object representing the event.
+            Text object containing the header.
         """
         color = self._get_event_color(event.event_type)
         emoji = self._get_event_emoji(event.event_type)
 
-        # Build the base text with timestamp, emoji and event type
+        # Build the header
         parts = []
 
-        # Timestamp
+        # Timestamp - keep only HH:mm:ss, drop milliseconds
         timestamp = event.timestamp.split("T")[1] if "T" in event.timestamp else event.timestamp
+        timestamp = timestamp.split(".")[0]  # Drop milliseconds
         parts.append(Text(f"[{timestamp}] ", style="dim"))
 
         # Emoji and event type
         event_type_name = event.event_type.value.replace("_", " ").upper()
         parts.append(Text(f"{emoji} {event_type_name}: ", style=f"bold {color}"))
 
+        return Text.assemble(*parts)
+
+    def _write_special_content(self, event: AimeEvent) -> None:
+        """Write special content that may contain Syntax objects.
+
+        Since Text.assemble cannot mix Text and Syntax objects, we write
+        special content separately after the header.
+
+        Args:
+            event: The event containing special content.
+        """
         # Handle different event types with special formatting
         if event.event_type in {EventType.PLANNER_THOUGHT, EventType.ACTOR_THOUGHT}:
             thought_content = self._extract_thought(event)
             if thought_content:
-                parts.append(self._format_thought(thought_content))
+                formatted = self._format_thought(thought_content)
+                self.write(formatted)
         elif event.event_type == EventType.ACTOR_TOOL_CALLED:
-            tool_content = self._format_tool_call(event)
-            parts.extend(tool_content)
+            for part in self._format_tool_call(event):
+                self.write(part)
         elif event.event_type == EventType.ACTOR_TOOL_FINISHED:
-            result_content = self._format_tool_result(event)
-            parts.extend(result_content)
+            for part in self._format_tool_result(event):
+                self.write(part)
         else:
             # Default message formatting
             message = self._extract_message(event)
             if message:
-                parts.append(Text(message))
-
-        # Combine all parts
-        result = Text.assemble(*parts)
-        return result
+                self.write(Text(message))
 
     def _extract_thought(self, event: AimeEvent) -> str:
         """Extract thought content from an event.

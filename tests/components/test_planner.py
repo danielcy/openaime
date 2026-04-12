@@ -2,6 +2,7 @@
 Tests for Planner component.
 """
 import pytest
+from typing import Any
 from unittest.mock import MagicMock, AsyncMock
 from aime.components.planner import Planner
 from aime.components.progress_module import ProgressModule
@@ -20,6 +21,7 @@ class MockLLM(BaseLLM):
         self,
         messages: list[Message],
         temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         return LLMResponse(content=self.response_content)
 

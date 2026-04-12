@@ -29,7 +29,7 @@ from typing import Optional, Any, Literal
 
 from aime.utils.logging import configure_logging
 from aime.base.config import AimeConfig
-from aime.base.llm import BaseLLM
+from aime.base.llm import BaseLLM, Message
 from aime.base.tool import Toolkit, ToolBundle
 from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
 from aime.base.events import EventType, AimeEvent, EventCallback
@@ -37,7 +37,7 @@ from aime.components.planner import Planner
 from aime.components.actor_factory import ActorFactory
 from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
-from aime.base.types import PlannerOutput, Task, TaskStatus
+from aime.base.types import PlannerOutput, Task, TaskStatus, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,7 @@ class OpenAime:
         self.actor_factory: Optional[ActorFactory] = None
         self._running = False
         self._lock = asyncio.Lock()
+        self._chat_history: list[ChatMessage] = []
 
         # Configure logging
         configure_logging(log_level)
@@ -151,20 +152,21 @@ class OpenAime:
             # Sync callback - call directly
             self.event_callback(event)
 
-    async def run(self, goal: str) -> str:
+    async def run(self, goal: str, new_goal: bool = False) -> str:
         """
         Run the autonomous agent to achieve a specific goal.
 
         This is the main entry point method that:
         1. Saves original working directory
         2. Changes to workspace directory
-        3. Initializes all components
+        3. Initializes all components (reusing existing if possible)
         4. Waits until the planner decides the goal is complete
         5. Restores original working directory
         6. Returns the final status
 
         Args:
             goal: The overall goal to achieve
+            new_goal: If True, clears previous session context (chat history, components) before running
 
         Returns:
             Final status message indicating whether the goal was completed
@@ -177,6 +179,13 @@ class OpenAime:
             if self._running:
                 raise RuntimeError("OpenAime instance is already running")
             self._running = True
+
+        # Handle new goal flag
+        if new_goal:
+            await self.clear_session()
+
+        # Add current goal to chat history
+        self._chat_history.append(ChatMessage(role="user", content=goal))
 
         original_cwd = os.getcwd()
         try:
@@ -212,7 +221,7 @@ class OpenAime:
             except Exception as e:
                 logger.error(f"Failed to restore working directory: {e}")
 
-            # Cleanup resources
+            # Cleanup resources - keep components for session continuity
             logger.debug("Cleaning up resources")
             await self._cleanup()
             logger.info("OpenAime execution stopped")
@@ -220,6 +229,7 @@ class OpenAime:
     async def _initialize_components(self, goal: str) -> None:
         """
         Initialize all components with the given goal.
+        Reuses existing components if they already exist for session continuity.
 
         Args:
             goal: The overall goal to achieve
@@ -229,29 +239,34 @@ class OpenAime:
             "goal": goal,
         })
 
-        # Create progress module
-        self.progress = ProgressModule(emit_event=self._emit_event)
+        # Create progress module if it doesn't exist
+        if self.progress is None:
+            self.progress = ProgressModule(emit_event=self._emit_event)
 
-        # Create planner
-        self.planner = Planner(self.llm, self.config.planner, emit_event=self._emit_event)
+        # Create planner if it doesn't exist
+        if self.planner is None:
+            self.planner = Planner(self.llm, self.config.planner, emit_event=self._emit_event)
+
+        # Initialize planner with the goal (will append to chat history if already initialized)
         await self.planner.initialize(goal, self.progress)
 
-        # Create actor factory
-        self.actor_factory = ActorFactory(
-            base_llm=self.llm,
-            actor_config=self.config.actor,
-            tool_bundles=self.tool_bundles,
-        )
-
-        # Register all individual tools from toolkit as a default bundle
-        if self.toolkit.get_all_tools() and not self.tool_bundles:
-            from aime.base.tool import ToolBundle
-            default_bundle = ToolBundle(
-                name="default",
-                description="Default bundle with all available tools",
-                tools=self.toolkit.get_all_tools(),
+        # Create actor factory if it doesn't exist
+        if self.actor_factory is None:
+            self.actor_factory = ActorFactory(
+                base_llm=self.llm,
+                actor_config=self.config.actor,
+                tool_bundles=self.tool_bundles,
             )
-            self.actor_factory.register_tool_bundle(default_bundle)
+
+            # Register all individual tools from toolkit as a default bundle
+            if self.toolkit.get_all_tools() and not self.tool_bundles:
+                from aime.base.tool import ToolBundle
+                default_bundle = ToolBundle(
+                    name="default",
+                    description="Default bundle with all available tools",
+                    tools=self.toolkit.get_all_tools(),
+                )
+                self.actor_factory.register_tool_bundle(default_bundle)
 
     async def _wait_for_goal_completion(self) -> str:
         """
@@ -330,14 +345,13 @@ class OpenAime:
     async def _cleanup(self) -> None:
         """
         Clean up all resources.
+        Keeps planner, progress, and actor_factory for session continuity.
         """
         async with self._lock:
             self._running = False
 
         # All actors are temporary and finish after running, no need to stop
-        self.planner = None
-        self.progress = None
-        self.actor_factory = None
+        # Keep planner, progress, and actor_factory for session continuity
 
     async def stop(self) -> None:
         """
@@ -368,3 +382,72 @@ class OpenAime:
         if self.progress:
             return await self.progress.export_markdown()
         return "No progress available"
+
+    async def clear_session(self) -> None:
+        """
+        Clear the current session context.
+        This includes chat history, progress tracking, planner, and actor factory.
+        """
+        logger.debug("Clearing session context")
+        self._chat_history.clear()
+        self.planner = None
+        self.progress = None
+        self.actor_factory = None
+
+    def is_session_empty(self) -> bool:
+        """
+        Check if the session is empty (no chat history).
+
+        Returns:
+            True if session is empty, False otherwise
+        """
+        return len(self._chat_history) == 0
+
+    async def _generate_execution_summary(self) -> str:
+        """
+        Generate an execution summary using LLM based on current task status.
+
+        Returns:
+            Summary of the current execution status
+        """
+        if self.progress is None:
+            return "No tasks have been created yet"
+
+        # Get all tasks
+        tasks = await self.progress.get_all_tasks()
+
+        # Build task status string
+        task_statuses = []
+        for task in tasks:
+            status_emoji = "✅" if task.status == TaskStatus.COMPLETED else \
+                          "❌" if task.status == TaskStatus.FAILED else \
+                          "⏳" if task.status == TaskStatus.IN_PROGRESS else \
+                          "📋"
+            task_statuses.append(f"{status_emoji} {task.description} ({task.status.value})")
+
+        task_status_str = "\n".join(task_statuses)
+
+        prompt = (
+            "Generate a concise summary of the current execution status based on the tasks below.\n"
+            "Focus on what has been completed, what is in progress, and any failures.\n\n"
+            "Tasks:\n"
+            f"{task_status_str}"
+        )
+
+        messages = [
+            Message(
+                role="system",
+                content="You are an assistant that summarizes task progress"
+            ),
+            Message(
+                role="user",
+                content=prompt
+            )
+        ]
+
+        try:
+            response = await self.llm.complete(messages)
+            return response.content or "Unable to generate summary"
+        except Exception as e:
+            logger.warning(f"Failed to generate execution summary: {e}")
+            return "Failed to generate summary"

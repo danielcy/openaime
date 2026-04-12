@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Literal
 import asyncio
 
 
@@ -93,6 +93,14 @@ class ActorRecord:
     def update_last_used(self) -> None:
         """Update last used timestamp."""
         self.last_used_at = datetime.now()
+
+
+@dataclass
+class ChatMessage:
+    """Chat message for session context retention."""
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 class ProgressList:

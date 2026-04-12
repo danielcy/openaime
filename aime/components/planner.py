@@ -13,7 +13,7 @@ import asyncio
 import logging
 import json
 from typing import Optional, List, Dict, Any, Callable
-from aime.base.types import PlannerOutput, Task, TaskStatus
+from aime.base.types import PlannerOutput, Task, TaskStatus, ChatMessage
 from aime.base.llm import BaseLLM, Message
 from aime.base.config import PlannerConfig
 from aime.base.events import EventType
@@ -52,47 +52,57 @@ class Planner:
         self.emit_event = emit_event
         self.goal: Optional[str] = None
         self._lock = asyncio.Lock()
+        self._chat_history: list[ChatMessage] = []
 
     async def initialize(self, goal: str, progress: ProgressModule) -> None:
         """
         Initialize the planner with the root goal.
-        Perform initial task decomposition into subtasks.
+        If already initialized, appends goal to chat history and keeps existing tasks.
 
         Args:
             goal: The overall goal to achieve
             progress: ProgressModule instance to track task progress
         """
+        is_initializing = self.goal is None
+
         async with self._lock:
-            self.goal = goal
+            if is_initializing:
+                self.goal = goal
 
-        logger.info("Planner initializing with initial task decomposition")
-        # Use LLM to do initial task decomposition
-        initial_prompt = self._build_initial_decomposition_prompt(goal)
-        messages = [
-            Message(
-                role="system",
-                content=initial_prompt
-            )
-        ]
-        logger.debug(f"Sending initial decomposition prompt, length: {len(initial_prompt)}")
-        response = await self.base_llm.complete(messages, temperature=self.config.temperature)
-        response_content = response.content or ""
-        logger.debug(f"LLM initial decomposition response:\n{response_content}")
+        # Add goal to chat history
+        self.add_user_message(goal)
 
-        # Parse subtasks from response
-        subtasks = self._parse_initial_decomposition(response_content, goal)
-        logger.info(f"Initial decomposition created {len(subtasks)} subtasks")
+        if is_initializing:
+            logger.info("Planner initializing with initial task decomposition")
+            # Use LLM to do initial task decomposition
+            initial_prompt = self._build_initial_decomposition_prompt(goal)
+            messages = [
+                Message(
+                    role="system",
+                    content=initial_prompt
+                )
+            ]
+            logger.debug(f"Sending initial decomposition prompt, length: {len(initial_prompt)}")
+            response = await self.base_llm.complete(messages, temperature=self.config.temperature)
+            response_content = response.content or ""
+            logger.debug(f"LLM initial decomposition response:\n{response_content}")
 
-        # Add subtasks to progress
-        for subtask in subtasks:
-            description = subtask.get("description", "")
-            completion_criteria = subtask.get("completion_criteria", description)
-            logger.debug(f"Adding initial subtask: {description}")
-            await progress.add_task(
-                description=description,
-                completion_criteria=completion_criteria,
-                parent_id=None,
-            )
+            # Parse subtasks from response
+            subtasks = self._parse_initial_decomposition(response_content, goal)
+            logger.info(f"Initial decomposition created {len(subtasks)} subtasks")
+
+            # Add subtasks to progress
+            for subtask in subtasks:
+                description = subtask.get("description", "")
+                completion_criteria = subtask.get("completion_criteria", description)
+                logger.debug(f"Adding initial subtask: {description}")
+                await progress.add_task(
+                    description=description,
+                    completion_criteria=completion_criteria,
+                    parent_id=None,
+                )
+        else:
+            logger.info("Planner already initialized, appending goal to chat history")
 
     async def plan_step(self, progress: ProgressModule) -> PlannerOutput:
         """
@@ -278,11 +288,20 @@ class Planner:
         Returns:
             Formatted system prompt
         """
+        # Build history section
+        history_section = ""
+        if self._chat_history:
+            history_section = "# 历史对话\n"
+            for message in self._chat_history:
+                history_section += f"**{message.role.upper()}:** {message.content}\n"
+            history_section += "\n"
+
         return (
             "# Role\n"
             "You are an expert dynamic planner for the AIME autonomous agent framework. "
-            "Your job is to continuously monitor the progress of the overall goal and decide what to do next.\n\n"
-            "# Overall Goal\n"
+            "Your job is to continuously monitor the progress of the overall goal and decide what to do next.\n\n" +
+            history_section +
+            "# Current Goal\n"
             f"{goal}\n\n"
             "# Current Progress\n"
             f"{tasks_status or 'No tasks have been created yet'}\n\n"
@@ -552,3 +571,21 @@ class Planner:
             # Return the first pending task
             return pending_tasks[0]
         return None
+
+    def add_user_message(self, content: str) -> None:
+        """
+        Add a user message to the chat history.
+
+        Args:
+            content: The content of the user message
+        """
+        self._chat_history.append(ChatMessage(role="user", content=content))
+
+    def add_assistant_message(self, content: str) -> None:
+        """
+        Add an assistant message to the chat history.
+
+        Args:
+            content: The content of the assistant message
+        """
+        self._chat_history.append(ChatMessage(role="assistant", content=content))
