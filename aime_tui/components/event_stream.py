@@ -58,13 +58,6 @@ class EventStream(RichLog):
         }:
             return
 
-        # Check if this is a long content event that needs spacing
-        is_long_content = self._is_long_content_event(event)
-
-        # Add spacing before long content
-        if is_long_content:
-            self.write(Text(""))
-
         # For events that have special formatting with integrated emoji,
         # output timestamp directly with the first line of content on the same line
         events_with_inline_header = {
@@ -84,11 +77,11 @@ class EventStream(RichLog):
             header_text = self._format_header(event)
             self.write(header_text)
             # Handle special formatting that may contain Syntax objects
+            # No extra spacing inside the same event
             self._write_special_content(event)
 
-        # Add spacing after long content
-        if is_long_content:
-            self.write(Text(""))
+        # Always add a blank line after each event for consistent spacing between events
+        self.write(Text(""))
 
     def _write_workspace_header(self, workspace: str) -> None:
         """Write workspace information header at the top of the event stream.
