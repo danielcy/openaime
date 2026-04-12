@@ -65,12 +65,26 @@ class EventStream(RichLog):
         if is_long_content:
             self.write(Text(""))
 
-        # Write the header (timestamp, emoji, event type)
-        header_text = self._format_header(event)
-        self.write(header_text)
+        # For events that have special formatting with integrated emoji,
+        # output timestamp directly with the first line of content on the same line
+        events_with_inline_header = {
+            EventType.ACTOR_TOOL_CALLED,
+            EventType.ACTOR_TOOL_FINISHED,
+            EventType.ACTOR_STARTED,
+            EventType.ACTOR_THOUGHT,
+        }
 
-        # Handle special formatting that may contain Syntax objects
-        self._write_special_content(event)
+        if event.event_type in events_with_inline_header:
+            # Get just the timestamp part (no event name)
+            timestamp_text = self._format_timestamp(event)
+            # Write timestamp + content on the same line
+            self._write_special_content_with_prefix(event, timestamp_text)
+        else:
+            # Write the header (timestamp, emoji, event type)
+            header_text = self._format_header(event)
+            self.write(header_text)
+            # Handle special formatting that may contain Syntax objects
+            self._write_special_content(event)
 
         # Add spacing after long content
         if is_long_content:
@@ -197,6 +211,20 @@ class EventStream(RichLog):
 
         return "default"
 
+    def _format_timestamp(self, event: AimeEvent) -> Text:
+        """Format just the timestamp part.
+
+        Args:
+            event: The event to format.
+
+        Returns:
+            Text object containing only the timestamp with trailing space.
+        """
+        # Timestamp - keep only HH:mm:ss, drop milliseconds
+        timestamp = event.timestamp.split("T")[1] if "T" in event.timestamp else event.timestamp
+        timestamp = timestamp.split(".")[0]  # Drop milliseconds
+        return Text(f"[{timestamp}] ", style="dim")
+
     def _format_header(self, event: AimeEvent) -> Text:
         """Format the header line with timestamp, emoji, and event type.
 
@@ -212,10 +240,7 @@ class EventStream(RichLog):
         # Build the header
         parts = []
 
-        # Timestamp - keep only HH:mm:ss, drop milliseconds
-        timestamp = event.timestamp.split("T")[1] if "T" in event.timestamp else event.timestamp
-        timestamp = timestamp.split(".")[0]  # Drop milliseconds
-        parts.append(Text(f"[{timestamp}] ", style="dim"))
+        parts.append(self._format_timestamp(event))
 
         # For events that have their own special formatting in the content,
         # don't display event type name here since it's already included
@@ -230,6 +255,48 @@ class EventStream(RichLog):
             parts.append(Text(f"{emoji} {event_type_name}: ", style=f"bold {color}"))
 
         return Text.assemble(*parts)
+
+    def _write_special_content_with_prefix(self, event: AimeEvent, prefix: Text) -> None:
+        """Write special content with timestamp prefix on the first line.
+
+        Args:
+            event: The event containing special content.
+            prefix: Timestamp prefix to put on the first line.
+        """
+        if event.event_type == EventType.ACTOR_TOOL_CALLED:
+            parts = self._format_tool_call(event)
+            if parts:
+                # Prepend timestamp to first part
+                if isinstance(parts[0], Text) and parts[0].plain == "":
+                    # Remove the empty first line we add for spacing
+                    parts = parts[1:]
+                if parts:
+                    parts[0] = Text.assemble(prefix, parts[0])
+            for part in parts:
+                self.write(part)
+        elif event.event_type == EventType.ACTOR_TOOL_FINISHED:
+            parts = self._format_tool_result(event)
+            if parts:
+                # Remove the empty first line we add for spacing
+                if isinstance(parts[0], Text) and parts[0].plain == "":
+                    parts = parts[1:]
+                if parts:
+                    parts[0] = Text.assemble(prefix, parts[0])
+            for part in parts:
+                self.write(part)
+        elif event.event_type == EventType.ACTOR_STARTED:
+            content = self._format_actor_started(event)
+            if content:
+                # Insert timestamp at beginning
+                full_content = Text.assemble(prefix, content)
+                self.write(full_content)
+        elif event.event_type == EventType.ACTOR_THOUGHT:
+            thought_content = self._extract_thought(event)
+            if thought_content:
+                formatted = self._format_actor_thought(thought_content)
+                # Insert timestamp at beginning
+                full_content = Text.assemble(prefix, formatted)
+                self.write(full_content)
 
     def _write_special_content(self, event: AimeEvent) -> None:
         """Write special content that may contain Syntax objects.
