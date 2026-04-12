@@ -195,7 +195,7 @@ class OpenAime:
 
             # Initialize all components
             logger.debug("Initializing all components")
-            await self._initialize_components(goal)
+            await self._initialize_components(goal, new_goal)
 
             # Wait for goal completion
             # In the new architecture, actors are created dynamically for each subtask
@@ -226,21 +226,24 @@ class OpenAime:
             await self._cleanup()
             logger.info("OpenAime execution stopped")
 
-    async def _initialize_components(self, goal: str) -> None:
+    async def _initialize_components(self, goal: str, new_goal: bool = False) -> None:
         """
         Initialize all components with the given goal.
         Reuses existing components if they already exist for session continuity.
 
         Args:
             goal: The overall goal to achieve
+            new_goal: If True, start a completely new goal (clear existing progress)
+                          If False, continue working on the current goal with existing progress
         """
         # Emit goal started event
         self._emit_event(EventType.PLANNER_GOAL_STARTED, {
             "goal": goal,
         })
 
-        # Create progress module if it doesn't exist
-        if self.progress is None:
+        # Create progress module
+        # If new_goal=True, always create a new progress module to clear old completed tasks
+        if self.progress is None or new_goal:
             self.progress = ProgressModule(emit_event=self._emit_event)
 
         # Create planner if it doesn't exist
