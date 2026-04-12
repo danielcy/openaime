@@ -41,6 +41,10 @@ class EventType(str, Enum):
     # Overall execution
     EXECUTION_FINISHED = "execution_finished"
 
+    # User interaction events
+    USER_QUESTION_ASKED = "user_question_asked"
+    USER_QUESTION_ANSWERED = "user_question_answered"
+
 
 @dataclass
 class AimeEvent:

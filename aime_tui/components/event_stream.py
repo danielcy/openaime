@@ -164,6 +164,9 @@ class EventStream(RichLog):
             EventType.TASK_STATUS_CHANGED: "📊",
             # Overall execution
             EventType.EXECUTION_FINISHED: "✅",
+            # User interaction events
+            EventType.USER_QUESTION_ASKED: "❓",
+            EventType.USER_QUESTION_ANSWERED: "💬",
         }
         return emoji_map.get(event_type, "•")
 
@@ -192,6 +195,10 @@ class EventStream(RichLog):
 
         # Task status change
         if event_type == EventType.TASK_STATUS_CHANGED:
+            return "accent"
+
+        # User interaction events
+        if event_type in {EventType.USER_QUESTION_ASKED, EventType.USER_QUESTION_ANSWERED}:
             return "accent"
 
         # Planner events
@@ -459,7 +466,7 @@ class EventStream(RichLog):
 
         # Format: 🔧{tool_name}
         #         {parameters truncated to 100 chars}
-        parts.append(Text(f"🔧{tool_name}\n", style="bold accent"))
+        parts.append(Text(f"🔧{tool_name}", style="bold accent"))
 
         if parameters:
             # Convert to json string
@@ -498,7 +505,7 @@ class EventStream(RichLog):
 
         # Format: 📝{tool_name}
         #         {result truncated to 200 chars}
-        parts.append(Text(f"📝{tool_name}\n", style="bold accent"))
+        parts.append(Text(f"📝{tool_name}", style="bold accent"))
 
         if result:
             # Truncate to max 200 characters
