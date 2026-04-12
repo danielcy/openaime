@@ -13,6 +13,9 @@ class ProgressModule:
     """
     Higher-level component that manages the overall progress of agentic workflows
     by integrating with and delegating to ProgressList.
+
+    Supports archiving historical progress lists when starting a new goal
+    while keeping them available for reference.
     """
 
     def __init__(
@@ -29,6 +32,8 @@ class ProgressModule:
         """
         self._progress_list = progress_list or ProgressList()
         self._emit_event = emit_event
+        # Archive for historical progress lists from previous goals
+        self._archived_progress: List[ProgressList] = []
 
     @property
     def progress_list(self) -> ProgressList:
@@ -216,7 +221,7 @@ class ProgressModule:
 
     async def delete_task(self, task_id: str) -> bool:
         """
-        Delete a task from the progress list.
+        Delete a task from the current progress list.
 
         Args:
             task_id: ID of the task to delete
@@ -229,3 +234,25 @@ class ProgressModule:
         if deleted:
             logger.info(f"Task {task_id} deleted successfully")
         return deleted
+
+    def archive_current(self) -> None:
+        """
+        Archive the current progress list to history and start fresh with an empty list.
+
+        This is used when starting a new goal in an existing session:
+        - The current progress is saved to history for reference
+        - A new empty progress list is created for the new goal's tasks
+        """
+        logger.info("Archiving current progress to history")
+        self._archived_progress.append(self._progress_list)
+        self._progress_list = ProgressList()
+
+    @property
+    def archived_progress(self) -> List[ProgressList]:
+        """
+        Get all archived progress lists from previous goals.
+
+        Returns:
+            List of archived ProgressList instances, one per previous goal.
+        """
+        return self._archived_progress

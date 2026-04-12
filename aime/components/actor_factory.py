@@ -295,9 +295,9 @@ If no existing actor is suitable (need to create new), output null.
         Returns:
             Role description string
         """
-        if len(self._tool_bundles) <= 1:
-            # Simple heuristic when there's only one bundle
-            return f"You are a specialized expert for completing this task: {task.description}"
+        # if len(self._tool_bundles) <= 1:
+        #     # Simple heuristic when there's only one bundle
+        #     return f"You are a specialized expert for completing this task: {task.description}"
 
         # Use LLM to generate a proper specialized role
         from aime.base.llm import Message

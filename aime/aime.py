@@ -152,7 +152,7 @@ class OpenAime:
             # Sync callback - call directly
             self.event_callback(event)
 
-    async def run(self, goal: str, new_goal: bool = False) -> str:
+    async def run(self, goal: str) -> str:
         """
         Run the autonomous agent to achieve a specific goal.
 
@@ -164,9 +164,14 @@ class OpenAime:
         5. Restores original working directory
         6. Returns the final status
 
+        In a multi-goal session:
+        - Chat history is always preserved for context across goals
+        - Previous progress is archived to history, new empty progress is created
+        - Planner always does initial decomposition for each new goal
+        - Planner and actor_factory are reused with accumulated context
+
         Args:
             goal: The overall goal to achieve
-            new_goal: If True, clears previous session context (chat history, components) before running
 
         Returns:
             Final status message indicating whether the goal was completed
@@ -180,11 +185,12 @@ class OpenAime:
                 raise RuntimeError("OpenAime instance is already running")
             self._running = True
 
-        # Handle new goal flag
-        if new_goal:
-            await self.clear_session()
+        # Archive existing progress if it exists (always start fresh for new goal)
+        # Keep chat history for context, just archive old task list
+        if self.progress is not None:
+            self.progress.archive_current()
 
-        # Add current goal to chat history
+        # Always add current goal to chat history - preserve context across goals
         self._chat_history.append(ChatMessage(role="user", content=goal))
 
         original_cwd = os.getcwd()
@@ -195,7 +201,7 @@ class OpenAime:
 
             # Initialize all components
             logger.debug("Initializing all components")
-            await self._initialize_components(goal, new_goal)
+            await self._initialize_components(goal)
 
             # Wait for goal completion
             # In the new architecture, actors are created dynamically for each subtask
@@ -226,25 +232,26 @@ class OpenAime:
             await self._cleanup()
             logger.info("OpenAime execution stopped")
 
-    async def _initialize_components(self, goal: str, new_goal: bool = False) -> None:
+    async def _initialize_components(self, goal: str) -> None:
         """
         Initialize all components with the given goal.
         Reuses existing components if they already exist for session continuity.
 
+        In the new unified logic:
+        - progress is always created fresh (previous was already archived before calling)
+        - planner is reused if exists (keeps accumulated chat history)
+        - actor factory is reused if exists (keeps cached actors)
+
         Args:
             goal: The overall goal to achieve
-            new_goal: If True, start a completely new goal (clear existing progress)
-                          If False, continue working on the current goal with existing progress
         """
         # Emit goal started event
         self._emit_event(EventType.PLANNER_GOAL_STARTED, {
             "goal": goal,
         })
 
-        # Create progress module
-        # If new_goal=True, always create a new progress module to clear old completed tasks
-        if self.progress is None or new_goal:
-            self.progress = ProgressModule(emit_event=self._emit_event)
+        # Always create a new progress module - previous progress was already archived
+        self.progress = ProgressModule(emit_event=self._emit_event)
 
         # Create planner if it doesn't exist
         if self.planner is None:

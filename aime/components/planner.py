@@ -56,53 +56,50 @@ class Planner:
 
     async def initialize(self, goal: str, progress: ProgressModule) -> None:
         """
-        Initialize the planner with the root goal.
-        If already initialized, appends goal to chat history and keeps existing tasks.
+        Initialize the planner with a new goal.
+        Always does initial task decomposition into the provided progress.
+        Chat history accumulates all goals for context retention.
 
         Args:
             goal: The overall goal to achieve
-            progress: ProgressModule instance to track task progress
+            progress: ProgressModule instance (should be empty) to track task progress
         """
-        is_initializing = self.goal is None
-
         async with self._lock:
-            if is_initializing:
-                self.goal = goal
+            # Always update to the latest goal
+            self.goal = goal
 
-        # Add goal to chat history
+        # Always add goal to chat history - preserve context across goals
         self.add_user_message(goal)
 
-        if is_initializing:
-            logger.info("Planner initializing with initial task decomposition")
-            # Use LLM to do initial task decomposition
-            initial_prompt = self._build_initial_decomposition_prompt(goal)
-            messages = [
-                Message(
-                    role="system",
-                    content=initial_prompt
-                )
-            ]
-            logger.debug(f"Sending initial decomposition prompt, length: {len(initial_prompt)}")
-            response = await self.base_llm.complete(messages, temperature=self.config.temperature)
-            response_content = response.content or ""
-            logger.debug(f"LLM initial decomposition response:\n{response_content}")
+        # Always do initial task decomposition since we always start with an empty progress
+        logger.info("Planner doing initial task decomposition for new goal")
+        # Use LLM to do initial task decomposition
+        initial_prompt = self._build_initial_decomposition_prompt(goal)
+        messages = [
+            Message(
+                role="system",
+                content=initial_prompt
+            )
+        ]
+        logger.debug(f"Sending initial decomposition prompt, length: {len(initial_prompt)}")
+        response = await self.base_llm.complete(messages, temperature=self.config.temperature)
+        response_content = response.content or ""
+        logger.debug(f"LLM initial decomposition response:\n{response_content}")
 
-            # Parse subtasks from response
-            subtasks = self._parse_initial_decomposition(response_content, goal)
-            logger.info(f"Initial decomposition created {len(subtasks)} subtasks")
+        # Parse subtasks from response
+        subtasks = self._parse_initial_decomposition(response_content, goal)
+        logger.info(f"Initial decomposition created {len(subtasks)} subtasks")
 
-            # Add subtasks to progress
-            for subtask in subtasks:
-                description = subtask.get("description", "")
-                completion_criteria = subtask.get("completion_criteria", description)
-                logger.debug(f"Adding initial subtask: {description}")
-                await progress.add_task(
-                    description=description,
-                    completion_criteria=completion_criteria,
-                    parent_id=None,
-                )
-        else:
-            logger.info("Planner already initialized, appending goal to chat history")
+        # Add subtasks to the new empty progress
+        for subtask in subtasks:
+            description = subtask.get("description", "")
+            completion_criteria = subtask.get("completion_criteria", description)
+            logger.debug(f"Adding initial subtask: {description}")
+            await progress.add_task(
+                description=description,
+                completion_criteria=completion_criteria,
+                parent_id=None,
+            )
 
     async def plan_step(self, progress: ProgressModule) -> PlannerOutput:
         """
