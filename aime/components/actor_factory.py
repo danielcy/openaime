@@ -20,6 +20,7 @@ from aime.base.events import EventType
 from aime.components.planner import Planner
 from aime.components.progress_module import ProgressModule
 from aime.components.actor import DynamicActor
+from aime.base.skill import SkillRegistry, Skill
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class ActorFactory:
         base_llm: BaseLLM,
         actor_config: ActorConfig,
         tool_bundles: Optional[List[ToolBundle]] = None,
+        skill_registry: Optional[SkillRegistry] = None,
     ):
         """
         Initialize the Actor Factory.
@@ -48,6 +50,7 @@ class ActorFactory:
             base_llm: Base LLM instance to use for actors
             actor_config: Default configuration for created actors
             tool_bundles: List of available tool bundles (pre-organized by capability)
+            skill_registry: Optional skill registry for matching skills
         """
         self.base_llm = base_llm
         self.actor_config = actor_config
@@ -61,6 +64,7 @@ class ActorFactory:
         self._actor_counter = 0
         # Registry of created actors for reuse
         self._actors: dict[str, tuple[DynamicActor, ActorRecord]] = {}
+        self._skill_registry = skill_registry
 
     def register_tool_bundle(self, bundle: ToolBundle) -> None:
         """
@@ -188,6 +192,14 @@ If no existing actor is suitable (need to create new), output null.
                 existing_actor._running = False
             existing_actor._history.clear()
             logger.info(f"ActorFactory reusing existing actor: {existing_actor.actor_id}")
+            # Re-match skills for the new task
+            if self._skill_registry is not None:
+                matched_skills = self._skill_registry.match(
+                    llm=self.base_llm,
+                    task_description=task.description,
+                    top_k=3,
+                )
+                existing_actor._matched_skills = matched_skills
             return existing_actor
 
         # Need to create new actor
@@ -200,6 +212,17 @@ If no existing actor is suitable (need to create new), output null.
         # Use LLM to select which bundles to include
         selected_bundles = await self._select_tool_bundles(task)
         logger.debug(f"Actor {actor_id} selected bundles: {[b.name for b in selected_bundles]}")
+
+        # Match skills for this task (if skill registry available)
+        matched_skills: list[Skill] = []
+        if self._skill_registry is not None:
+            matched_skills = self._skill_registry.match(
+                llm=self.base_llm,
+                task_description=task.description,
+                top_k=3,
+            )
+            if matched_skills:
+                logger.info(f"Actor {actor_id} matched skills: {[s.metadata.name for s in matched_skills]}")
 
         # Build toolkit from selected bundles
         toolkit = Toolkit()
@@ -228,6 +251,7 @@ If no existing actor is suitable (need to create new), output null.
             knowledge=knowledge,
             config=self.actor_config,
             emit_event=emit_event,
+            matched_skills=matched_skills,
         )
 
         # Store in registry for future reuse

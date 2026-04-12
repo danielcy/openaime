@@ -10,6 +10,7 @@ According to the AIME paper, each DynamicActor:
 """
 import asyncio
 import logging
+import os
 import re
 import json
 import platform
@@ -22,6 +23,7 @@ from aime.base.llm import BaseLLM, Message
 from aime.base.tool import BaseTool, Toolkit
 from aime.base.config import ActorConfig
 from aime.base.knowledge import BaseKnowledge
+from aime.base.skill import Skill
 from aime.base.events import EventType
 from aime.components.progress_module import ProgressModule
 from aime.components.planner import Planner
@@ -51,6 +53,7 @@ class DynamicActor:
         knowledge: BaseKnowledge,
         config: ActorConfig,
         emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
+        matched_skills: list[Skill] = [],
     ):
         """
         Initialize the DynamicActor for a specific subtask.
@@ -66,6 +69,7 @@ class DynamicActor:
             knowledge: Knowledge base for retrieval
             config: Actor configuration
             emit_event: Optional callback to emit events (used for real-time streaming).
+            matched_skills: List of matched skills to inject into system prompt
         """
         self.actor_id = actor_id
         self.role = role
@@ -83,6 +87,7 @@ class DynamicActor:
 
         # Conversation history for ReAct
         self._history: List[Message] = []
+        self._matched_skills = matched_skills
 
     async def run(self) -> ActorResult:
         """
@@ -468,6 +473,44 @@ Important Guidance:
 - Do NOT prepend /workspace to paths and do NOT add cd /workspace to shell commands - the working directory is already set correctly.
 """
 
+        # Inject matched skills instructions if any
+        skills_section = ""
+        if self._matched_skills:
+            skills_section += "\n\n## Activated Skills\n\n"
+            for skill in self._matched_skills:
+                skills_section += f"### {skill.metadata.name}\n"
+                skills_section += f"**Description:** {skill.metadata.description}\n\n"
+                # Fix relative resource paths to be absolute
+                # This allows actors to correctly read references via tools
+                skill_instructions = skill.instructions
+                # Replace various forms of quoted relative paths
+                skill_instructions = skill_instructions.replace(
+                    '"references/',
+                    f'"{os.path.join(skill.metadata.path, "references/")}'
+                )
+                skill_instructions = skill_instructions.replace(
+                    "'references/",
+                    f"'{os.path.join(skill.metadata.path, 'references/')}"
+                )
+                skill_instructions = skill_instructions.replace(
+                    '`references/',
+                    f'`{os.path.join(skill.metadata.path, "references/")}'
+                )
+                skill_instructions = skill_instructions.replace(
+                    '"scripts/',
+                    f'"{os.path.join(skill.metadata.path, "scripts/")}'
+                )
+                skill_instructions = skill_instructions.replace(
+                    "'scripts/",
+                    f"'{os.path.join(skill.metadata.path, 'scripts/')}"
+                )
+                skill_instructions = skill_instructions.replace(
+                    '`scripts/',
+                    f'`{os.path.join(skill.metadata.path, "scripts/")}'
+                )
+                skills_section += skill_instructions
+                skills_section += "\n\n---\n"
+
         return (
             f"Role: {self.role}\n\n"
             f"Your Task: {self.task.description}\n"
@@ -488,6 +531,7 @@ Important Guidance:
             "Example:\n"
             "THOUGHT: I need to read the README file to understand the project structure.\n"
             "ACTION: {\"tool\": \"file_read\", \"parameters\": {\"file_path\": \"README.md\"}}\n"
+            + skills_section
         )
 
     def _parse_response(self, response: str) -> Optional[Tuple[str, Optional[str], dict]]:
