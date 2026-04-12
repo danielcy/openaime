@@ -50,6 +50,14 @@ class EventStream(RichLog):
         if not self._config.show_debug_events and self._is_debug_event(event):
             return
 
+        # Completely skip these planner events to reduce noise
+        if event.event_type in {
+            EventType.PLANNER_STEP_STARTED,
+            EventType.PLANNER_THOUGHT,
+            EventType.PLANNER_TASK_DISPATCHED,
+        }:
+            return
+
         # Check if this is a long content event that needs spacing
         is_long_content = self._is_long_content_event(event)
 
@@ -110,7 +118,7 @@ class EventStream(RichLog):
             True if the event has long content, False otherwise.
         """
         long_content_types = {
-            EventType.PLANNER_THOUGHT,
+            EventType.ACTOR_STARTED,
             EventType.ACTOR_THOUGHT,
             EventType.ACTOR_TOOL_CALLED,
             EventType.ACTOR_TOOL_FINISHED,
@@ -209,9 +217,14 @@ class EventStream(RichLog):
         timestamp = timestamp.split(".")[0]  # Drop milliseconds
         parts.append(Text(f"[{timestamp}] ", style="dim"))
 
-        # For tool events, don't display event type name here since it's already
-        # included in the special content formatting with the tool name
-        if event.event_type not in {EventType.ACTOR_TOOL_CALLED, EventType.ACTOR_TOOL_FINISHED}:
+        # For events that have their own special formatting in the content,
+        # don't display event type name here since it's already included
+        if event.event_type not in {
+            EventType.ACTOR_TOOL_CALLED,
+            EventType.ACTOR_TOOL_FINISHED,
+            EventType.ACTOR_STARTED,
+            EventType.ACTOR_THOUGHT,
+        }:
             # Emoji and event type
             event_type_name = event.event_type.value.replace("_", " ").upper()
             parts.append(Text(f"{emoji} {event_type_name}: ", style=f"bold {color}"))
@@ -228,11 +241,18 @@ class EventStream(RichLog):
             event: The event containing special content.
         """
         # Handle different event types with special formatting
-        if event.event_type in {EventType.PLANNER_THOUGHT, EventType.ACTOR_THOUGHT}:
+        if event.event_type == EventType.ACTOR_STARTED:
+            content = self._format_actor_started(event)
+            if content:
+                self.write(content)
+        elif event.event_type == EventType.ACTOR_THOUGHT:
             thought_content = self._extract_thought(event)
             if thought_content:
-                formatted = self._format_thought(thought_content)
+                formatted = self._format_actor_thought(thought_content)
                 self.write(formatted)
+        elif event.event_type in {EventType.PLANNER_THOUGHT, EventType.PLANNER_STEP_STARTED, EventType.PLANNER_TASK_DISPATCHED}:
+            # These are completely skipped in add_event
+            pass
         elif event.event_type == EventType.ACTOR_TOOL_CALLED:
             for part in self._format_tool_call(event):
                 self.write(part)
@@ -282,6 +302,67 @@ class EventStream(RichLog):
                 formatted_lines.append(f"  {line}")
 
         return Text("\n".join(formatted_lines))
+
+    def _format_actor_started(self, event: AimeEvent) -> Text:
+        """Format actor started event with role display.
+
+        Args:
+            event: The actor started event.
+
+        Returns:
+            Formatted Text object.
+        """
+        if not event.data:
+            return Text("")
+
+        role = event.data.get("role", "")
+        if not role:
+            return Text("")
+
+        # Truncate to max 100 characters
+        if len(role) > 100:
+            role = role[:97] + "..."
+
+        # Format: 🤖 Actor Launched:
+        #         {role}
+        return Text(f"🤖 Actor Launched:\n  {role}", style="bold secondary")
+
+    def _format_actor_thought(self, thought: str) -> Text:
+        """Format actor thought with special handling for THOUGHT/ACTION format.
+
+        Args:
+            thought: The raw thought content.
+
+        Returns:
+            Formatted Text object.
+        """
+        if not thought:
+            return Text("")
+
+        # Check if it matches THOUGHT: ... ACTION: ... format
+        lines = thought.split("\n")
+        thought_line = None
+        action_line = None
+
+        # Look for lines starting with THOUGHT: and ACTION:
+        for line in lines:
+            stripped = line.strip()
+            if stripped.lower().startswith("thought:"):
+                thought_line = stripped[len("thought:"):].strip()
+            elif stripped.lower().startswith("action:"):
+                action_line = stripped[len("action:"):].strip()
+
+        if thought_line is not None and action_line is not None:
+            # Found the expected format - use special emoji formatting
+            return Text.assemble(
+                Text("🤖 ", style="bold secondary"),
+                Text(thought_line + "\n"),
+                Text("👊🏻 ", style="bold accent"),
+                Text(action_line),
+            )
+        else:
+            # Default format - just display with emoji prefix
+            return Text("🤖 " + thought, style="secondary")
 
     def _format_json(self, data: Any) -> Text | Syntax:
         """Format JSON data with syntax highlighting.
