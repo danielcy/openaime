@@ -57,12 +57,12 @@ class TestEventStream:
         # Test with auto-scroll enabled
         config_enabled = TUIConfig(auto_scroll=True)
         stream_enabled = EventStream(config_enabled)
-        assert stream_enabled._auto_scroll is True
+        assert stream_enabled.auto_scroll is True
 
         # Test with auto-scroll disabled
         config_disabled = TUIConfig(auto_scroll=False)
         stream_disabled = EventStream(config_disabled)
-        assert stream_disabled._auto_scroll is False
+        assert stream_disabled.auto_scroll is False
 
     def test_event_without_message(self):
         """Test that events without message fields can be handled."""

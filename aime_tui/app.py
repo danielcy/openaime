@@ -34,12 +34,13 @@ class AimeTUI(App):
     - User input handling
     """
 
-    CSS_PATH = None  # We'll use programmatic styling with themes
+    CSS_PATH = "assets/aime.tcss"
 
     def __init__(
         self,
         tui_config: TUIConfig,
         openaime: OpenAime,
+        initial_goal: Optional[str] = None,
         **kwargs
     ) -> None:
         """
@@ -48,12 +49,14 @@ class AimeTUI(App):
         Args:
             tui_config: TUI configuration object
             openaime: OpenAime instance to control and monitor
+            initial_goal: Optional goal to run immediately on startup
             **kwargs: Additional keyword arguments passed to textual.app.App
         """
         super().__init__(**kwargs)
 
         self._config = tui_config
         self._openaime = openaime
+        self._initial_goal = initial_goal
 
         # Set up theme
         custom_theme = get_theme(tui_config.theme)
@@ -69,7 +72,7 @@ class AimeTUI(App):
         self._status_bar: Optional[StatusBar] = None
 
         # Execution tracking
-        self._start_time: Optional[datetime] = None
+        self._execution_start_time: Optional[datetime] = None
         self._current_iteration: int = 0
         self._is_running: bool = False
 
@@ -86,19 +89,19 @@ class AimeTUI(App):
         yield Header()
 
         # Status bar at the top
-        self._status_bar = StatusBar(self._config)
-        yield self._status_bar
+        # self._status_bar = StatusBar(self._config, self._openaime.workspace)
+        # yield self._status_bar
 
         # Main content area - layout depends on configuration
         if self._config.layout == "horizontal":
             with Horizontal():
-                self._event_stream = EventStream(self._config)
-                self._progress_pane = ProgressPane(self._config)
+                self._event_stream = EventStream(self._config, self._openaime.workspace)
                 yield self._event_stream
+                self._progress_pane = ProgressPane(self._config)
                 yield self._progress_pane
         else:  # vertical
             with Vertical():
-                self._event_stream = EventStream(self._config)
+                self._event_stream = EventStream(self._config, self._openaime.workspace)
                 self._progress_pane = ProgressPane(self._config)
                 yield self._event_stream
                 yield self._progress_pane
@@ -116,6 +119,11 @@ class AimeTUI(App):
         """Called when the app is ready and mounted."""
         self.title = "AIME - Autonomous Interactive Execution Engine"
         self.sub_title = "Monitoring OpenAime Execution"
+
+        # If we have an initial goal, run it after a short delay to let the UI render
+        if self._initial_goal is not None:
+            import asyncio
+            asyncio.create_task(self.run_goal(self._initial_goal))
 
     def handle_event(self, event: AimeEvent) -> None:
         """
@@ -167,7 +175,7 @@ class AimeTUI(App):
 
         # Track execution start
         if event.event_type == EventType.PLANNER_GOAL_STARTED:
-            self._start_time = datetime.now()
+            self._execution_start_time = datetime.now()
             self._is_running = True
             self._status_bar.update_state("running")
             self._status_bar.update_iteration(0)
@@ -183,8 +191,8 @@ class AimeTUI(App):
             self._status_bar.update_state("finished")
 
         # Update elapsed time on any event when running
-        if self._is_running and self._start_time:
-            elapsed = datetime.now() - self._start_time
+        if self._is_running and self._execution_start_time:
+            elapsed = datetime.now() - self._execution_start_time
             self._status_bar.update_elapsed_time(elapsed)
 
     def _handle_user_input(self, input_text: str) -> None:
@@ -194,7 +202,11 @@ class AimeTUI(App):
         Args:
             input_text: The text submitted by the user
         """
-        command = input_text.strip().lower()
+        input_text = input_text.strip()
+        if not input_text:
+            return
+
+        command = input_text.lower()
 
         if command in ["quit", "exit", "q"]:
             self.exit()
@@ -204,9 +216,14 @@ class AimeTUI(App):
         elif command in ["resume", "start"]:
             # TODO: Implement resume functionality
             pass
-        else:
-            # TODO: Handle other inputs like adding instructions
+        elif self._is_running:
+            # Already running, treat this as additional instructions
+            # TODO: Handle adding additional instructions
             pass
+        else:
+            # User input a goal to run - start execution
+            import asyncio
+            asyncio.create_task(self.run_goal(input_text))
 
     async def run_goal(self, goal: str) -> str:
         """
@@ -223,7 +240,7 @@ class AimeTUI(App):
         """
         # Reset state
         self._current_iteration = 0
-        self._start_time = None
+        self._execution_start_time = None
         self._is_running = False
 
         # Run OpenAime

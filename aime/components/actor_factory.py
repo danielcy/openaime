@@ -9,13 +9,14 @@ According to the AIME paper, the Actor Factory:
 - Instantiates a specialized DynamicActor for this specific task
 """
 import logging
-from typing import Optional, List
+from typing import Optional, List, Any, Callable
 
 from aime.base.types import Task, ActorRecord
 from aime.base.llm import BaseLLM
 from aime.base.tool import BaseTool, Toolkit, ToolBundle
 from aime.base.config import ActorConfig
 from aime.base.knowledge import BaseKnowledge
+from aime.base.events import EventType
 from aime.components.planner import Planner
 from aime.components.progress_module import ProgressModule
 from aime.components.actor import DynamicActor
@@ -157,6 +158,7 @@ If no existing actor is suitable (need to create new), output null.
         planner: Planner,
         progress: ProgressModule,
         knowledge: BaseKnowledge,
+        emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
     ) -> DynamicActor:
         """
         Create a specialized DynamicActor for the given task,
@@ -172,6 +174,7 @@ If no existing actor is suitable (need to create new), output null.
             planner: The planner instance (for coordination)
             progress: Progress module for updating status
             knowledge: Knowledge base for retrieving relevant information
+            emit_event: Optional callback to emit events for real-time streaming
 
         Returns:
             Instantiated DynamicActor ready to run
@@ -224,6 +227,7 @@ If no existing actor is suitable (need to create new), output null.
             toolkit=toolkit,
             knowledge=knowledge,
             config=self.actor_config,
+            emit_event=emit_event,
         )
 
         # Store in registry for future reuse

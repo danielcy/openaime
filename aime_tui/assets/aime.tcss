@@ -1,0 +1,149 @@
+/*
+ * AIME TUI Styles - Based on Claude Code's clean terminal aesthetic
+ *
+ * This TCSS file provides consistent styling for the AIME TUI application,
+ * with color scheme and spacing matching modern terminal UI design.
+ */
+
+/* Overall app container */
+AimeTUI {
+  background: $background;
+}
+
+/* Header styling */
+Header {
+  background: $boost;
+  border-bottom: solid $panel $border;
+  height: 3;
+}
+
+/* Footer styling */
+Footer {
+  background: $boost;
+  border-top: solid $panel $border;
+}
+
+/* StatusBar styling - top status bar */
+StatusBar {
+  background: $panel;
+  border: solid $border;
+  margin: 0 0 1 0;
+  padding: 1 2;
+  height: 3;
+  color: $text;
+}
+
+/* Main content containers */
+Horizontal {
+  height: 1fr;
+  width: 100%;
+}
+
+Vertical {
+  height: 1fr;
+  width: 100%;
+}
+
+/* EventStream - inherits from RichLog */
+EventStream {
+  width: 70%;
+  background: $background;
+  border: solid $border;
+  padding: 1;
+  margin-right: 1;
+}
+
+/* ProgressPane - inherits from Tree */
+ProgressPane {
+  width: 30%;
+  background: $panel;
+  border: solid $border;
+  padding: 1;
+}
+
+/* For vertical layout */
+Vertical EventStream {
+  width: 100%;
+  height: 70%;
+  margin-right: 0;
+  margin-bottom: 1;
+}
+
+Vertical ProgressPane {
+  width: 100%;
+  height: 30%;
+  padding: 1;
+}
+
+/* Tree (ProgressPane) specific styling */
+ProgressPane Tree {
+  background: transparent;
+}
+
+ProgressPane TreeNode {
+  padding: 0 1;
+}
+
+/* Highlight the currently selected tree node */
+ProgressPane > Tree > TreeNode.highlight {
+  background: $accent;
+  color: $text;
+}
+
+/* InputBox - bottom input area */
+InputBox {
+  margin: 1 0 0 0;
+  border: solid $border;
+  height: 3;
+  background: $boost;
+}
+
+InputBox:focus {
+  border: thick $primary;
+}
+
+/* EventStream specific styling for different event types */
+.event-actor {
+  color: $secondary;
+}
+
+.event-planner {
+  color: $primary;
+}
+
+.event-success {
+  color: $success;
+}
+
+.event-error {
+  color: $error;
+}
+
+.event-info {
+  color: $accent;
+}
+
+/* Make scrollbars look better */
+ScrollBar {
+  background: $background;
+  width: 2;
+}
+
+ScrollBar > .thumb {
+  background: $panel;
+}
+
+ScrollBar:focus > .thumb {
+  background: $primary;
+}
+
+/* Better spacing for RichLog content */
+EventStream RichLog {
+  padding: 1;
+}
+
+/* Dimmed text for less important information */
+.dim {
+  color: $foreground-muted;
+}
+

@@ -1,0 +1,729 @@
+--- Page 1 ---
+
+AimeTeam
+AIME: TOWARDS FULLY-AUTONOMOUS MULTI-
+AGENT FRAMEWORK
+YexuanShi∗, MingyuWang, YunxiangCao, HongjieLai, JunjianLan,
+XinHan, YuWang, JieGeng, ZhenanLi, ZihaoXia, XiangChen,
+ChenLi, JianXu, WenboDuan, YuanshuoZhu
+ByteDance
+ABSTRACT
+Multi-Agent Systems (MAS) powered by Large Language Models (LLMs) are
+emerging as a powerful paradigm for solving complex, multifaceted problems.
+However, the potential of these systems is often constrained by the prevalent
+plan-and-execute framework, which suffers from critical limitations: rigid plan
+execution, staticagentcapabilities, andinefficientcommunication. Theseweak-
+nesseshindertheiradaptabilityandrobustnessindynamicenvironments.Thispa-
+perintroducesAime,anovelmulti-agentframeworkdesignedtoovercomethese
+challengesthroughdynamic,reactiveplanningandexecution. Aimereplacesthe
+conventionalstaticworkflowwithafluidandadaptivearchitecture. Itscoreinno-
+vationsinclude: (1)aDynamicPlannerthatcontinuouslyrefinestheoverallstrat-
+egybasedonreal-timeexecutionfeedback;(2)anActorFactorythatimplements
+DynamicActorinstantiation,assemblingspecializedagentson-demandwithtai-
+lored tools and knowledge; and (3) a centralized Progress Management Module
+thatservesasasinglesourceoftruthforcoherent,system-widestateawareness.
+We empirically evaluated Aime on a diverse suite of benchmarks spanning gen-
+eralreasoning(GAIA),softwareengineering(SWE-benchVerified),andliveweb
+navigation(WebVoyager). TheresultsdemonstratethatAimeconsistentlyoutper-
+formsevenhighlyspecializedstate-of-the-artagentsintheirrespectivedomains.
+Its superior adaptability and task success rate establish Aime as a more resilient
+andeffectivefoundationformulti-agentcollaboration.
+1 INTRODUCTION
+TherecentemergenceofLargeLanguageModels(LLMs)representsasignificantmilestoneinar-
+tificial intelligence (Chang et al., 2024). Demonstrating profound capabilities in natural language
+understanding,reasoning,andgeneration,LLMsnowserveasthefoundationaltechnologyforanew
+classofintelligentsystems. ThistrendhasspurredthedevelopmentofLLMAgents: autonomous
+entities that leverage an LLM as their central cognitive engine. By augmenting LLMs with ex-
+ternal tools, such as code interpreters or information retrieval systems, these agents can interact
+with their environment to execute complex, multi-step tasks, acting as versatile and autonomous
+problem-solvers(Wangetal.,2024b;Qinetal.,2024;Wangetal.,2024a).
+Buildinguponthesuccessofindividualagents,thefieldisincreasinglyexploringMulti-AgentSys-
+tems (MAS), where teams of LLM Agents collaborate to solve complex problems that exceed the
+capabilities of any single agent. This paradigm is valued for its ability to decompose large-scale
+problems and leverage specialized agents in a synergistic manner (Shen et al., 2023; Hong et al.,
+2024; Tao et al., 2024). Among the various architectures, the plan-and-execute framework has
+becomeadominantapproach(Huangetal.,2024). Inthisstructure,adedicatedplanneragentde-
+constructsauser’srequestintoastaticsequenceofsubtasks. Thesesubtasksarethenassignedtoa
+teamofexecutoragents,eachpossessingapredefinedroleandtoolset.
+Despite its widespread adoption, the plan-and-execute model exhibits critical limitations, particu-
+larly in dynamic or unpredictable environments. The rigid separation of planning and execution
+∗CorrespondingAuthor,E-mail:shiyexuan@bytedance.com
+1
+5202
+luJ
+71
+]IA.sc[
+2v88911.7052:viXra
+
+--- Page 2 ---
+
+AimeTeam
+introduces significant operational friction. Our work identifies three fundamental challenges that
+curtailtheeffectivenessofthesesystems: (1)RigidPlanExecution. Plansaregeneratedonceand
+are typically brittle. The planner remains idle during execution, rendering the system unable to
+adapt to real-time feedback or unexpected outcomes produced by the executors. (2) Static Agent
+Capabilities. Agentsareconfinedtopredefinedrolesandtoolkits. Thisrigiditylimitsthesystem’s
+abilitytohandleunforeseentasksthatdemandnovelskills,therebycompromisingitsextensibility
+androbustness. (3)InefficientCommunication. Taskhandoffsbetweenagentsoftenresultincontext
+loss. Withoutacentralizedstatemanagementsystem,agentsoperatewithanincompleteviewofthe
+overallprogress,leadingtoredundantworkandcoordinationfailures.
+Toaddresstheselimitations,thispaperintroduceAime,anovelmulti-agentframeworkdesignedfor
+dynamic, reactive planning and execution. Instead of a static, top-down workflow, Aime operates
+on a principle of continuous adaptation. It replaces the fixed planner-executor dichotomy with a
+more fluid architecture comprising four core components: a Dynamic Planner that continuously
+refines strategy based on live feedback; an Actor Factory that instantiates specialized actors on-
+demandtomeetspecifictaskrequirements; autonomousDynamicActorsthatexecutetasks; anda
+centralized Progress Management Module that serves as a single source of truth for system-wide
+stateawareness.
+Theprimarycontributionsofthisworkareasfollows:
+• We propose Aime, a novel MAS framework that replaces the rigid plan-and-execute
+paradigm with a fluid, adaptive system. Aime enables dynamic plan adjustments, on-
+demand role allocation, and streamlined coordination to effectively manage complex,
+evolvingtasks.
+• We introduce Dynamic Actor Instantiation, a mechanism implemented via an Actor Fac-
+tory. This component assembles specialized actors on-demand, equipping them with tai-
+loredpersonas,tools,andknowledgetoaddressthelimitationsofstaticagentroles.
+• WedesignacentralizedProgressManagementModulethatmaintainsaunified,real-time
+viewoftaskprogress. Thismodulemitigatesinformationlossandcoordinationfailuresby
+providingcoherentstateawarenessacrosstheentiresystem.
+• Weconductcomprehensiveexperimentsonchallengingbenchmarksforgeneralreasoning,
+softwareengineering,andwebnavigation(GAIA,SWE-bench,WebVoyager). Ourresults
+showthatitsignificantlyoutperformsspecializedstate-of-the-artframeworksinbothtask
+successrateandadaptability.
+The remainder of this paper is organized as follows. Section 2 provides a detailed background
+on LLM Agents and Multi-Agent Systems. Section 3 presents a high-level overview of the Aime
+framework. Section4detailsthedesignofitscorecomponents. Experimentalsetupandresultsare
+presentedinSection5.WethendiscusstherelatedworkinSection6,andfinally,concludethepaper
+inSection7.
+2 BACKGROUND
+ThissectionreviewsthecoreconceptsofLargeLanguageModelAgents(LLMAgents)andMulti-
+AgentSystems(MAS).Wethendiscusscurrentchallengesandpresentourresearchmotivation.
+LLMAgent. TheemergenceofLargeLanguageModels(LLMs)hasenabledanewclassofau-
+tonomous systems known as LLM Agents. An LLM Agent utilizes an LLM not merely as a text
+generator,butasitscentralcognitivecoreforreasoning,planning,anddecision-making(Yaoetal.,
+2023). Totranscendtheinherentlimitationsoftheirstatic,pre-trainedknowledge,theseagentsare
+augmented with external tools. This augmentation allows them to interact dynamically with their
+environment, granting them capabilities such as executing code, retrieving real-time information
+fromtheweb,andcontrollingexternaldevices(Shietal.,2025). Formally,anLLMAgent,A,can
+bedefinedasatuple:
+A={LLM,T,P,M}
+2
+
+--- Page 3 ---
+
+AimeTeam
+where LLM is the cognitive engine; T = {τ ,...,τ } is a set of external tools, each with well-
+1 n
+defined functionalities; P represents the prompts that structure the LLM’s reasoning process and
+tool-usestrategies; andM isamemorymoduleforstoringhistoricalinteractions, states, andcon-
+textualinformation(Zhangetal.,2024).
+TheoperationalparadigmofanLLMAgentistypicallyaniterativecycleofreasoning,acting,and
+observing. Theagentassessesagivengoal,formulatesaplan,executesanaction(oftenbyinvoking
+a tool), and then incorporates the resulting feedback to inform its next step. This loop continues
+untilthetaskisaccomplished,enablingLLMAgentstodeconstructandsolvecomplex,multi-step
+problems.
+Multi-AgentSystem. BuildinguponthecapabilitiesofindividualLLMAgents,Multi-AgentSys-
+tems (MAS) represent the next frontier in collaborative AI. A MAS is composed of multiple au-
+tonomous agents operating within a shared environment, orchestrated to tackle objectives that are
+too complex or large in scope for a single agent to handle effectively (Guo et al., 2024). Through
+structured interaction and role specialization, these agents can achieve emergent intelligence and
+synergy. AMAScanbeformallydescribedas:
+MAS =S(A ,A ,··· ,A )
+1 2 m
+whereeachA isanLLMAgentaspreviouslydefined,andS denotesthecollaborationframework
+i
+thatgovernstheirinteractions. Thisframeworkdefinesagentroles, communicationprotocols, and
+potentialhierarchies.
+AdefiningcharacteristicofLLM-basedMASistheuseofnaturallanguageastheprimarymedium
+forinter-agentcommunication.Thisoffersunprecedentedflexibilitycomparedtotraditional,rigidly
+codedprotocols. However,italsointroducessignificantchallengesinmaintainingsemanticconsis-
+tency, ensuring goal alignment, and managing complex conversational flows. The design of an
+effectivecollaborationstructureS isthereforecriticaltosystemperformanceandremainsanactive
+areaofresearch,whichleadstothechallengesweaddressinthiswork.
+Motivation. IncurrentMASresearchandapplications,awidelyadoptedorchestratedstructureS
+istheplan-and-executeframework(Huangetal.,2024).Thisframeworkassignsspecializedrolesto
+agents,typicallyasplannersorexecutors. Theworkflowgenerallyunfoldsinthreedistinctstages:
+(1) Global Planning, where a planner agent analyzes a request and decomposes it into structured
+subtasks;(2)TaskAssignment,wheresubtasksareallocatedtoexecutoragentsbasedontheirprede-
+finedcapabilities; and(3)ExecutionandFeedback, whereexecutorscompletetheirassignedtasks
+andreporttheoutcomes.
+While this paradigm offers a structured approach to multi-agent collaboration, it struggles with
+complex,dynamictasks. Thestrictseparationofplanningandexecutionoftenleadstosuboptimal
+performance,particularlyinenvironmentswheretaskrequirementscanchangemid-execution. Our
+workismotivatedbythreecriticalchallengesinherentinthismodel:
+• Rigid Plan Execution. Conventional plans are often static. Once formulated, the plan-
+ner must typically wait for all executors to report completion before aggregating results.
+However,theautonomyofindividualexecutorsmeanstheiractionsmaydeviatefromthe
+prescribed plan, leading to incomplete or redundant work. This deviation provides the
+plannerwithunreliablefeedback,ultimatelydegradingoverallsystemperformance(Cemri
+etal.,2025).
+• StaticAgentCapabilities. Theplan-and-executemodelpresupposesthatthepredefinedca-
+pabilitiesofagentsaresufficientforallanticipatedtasks. Thisassumptionisoftenviolated
+inpractice. Forinstance,inaccurateorincompletedescriptionsofanagent’sskillscanlead
+theplannertomakesuboptimaltaskassignments(Shenetal.,2023). Moreover,thesystem
+cannot adapt to unforeseen tasks that demand new tools or capabilities, thus limiting its
+extensibilityandperformanceonnovelproblems.
+• InefficientCommunication. Thehandoffofinformationbetweenagentsisfrequentlyabot-
+tleneck. Criticalcontextcanbelostordistortedduringtaskdelegation,hinderingseamless
+3
+
+--- Page 4 ---
+
+AimeTeam
+execution (Yan, 2025). This issue is exacerbated by the absence of a shared state man-
+agementsystem. Agentsoftenoperatewithanincompleteviewoftheoverallprogress,as
+statusupdatesaretypicallyaggregatedonlyupontaskcompletion. Thislackofreal-time
+sharedawarenesscanleadtoredundanteffortsandcriticaldelays.
+These challenges collectively limit the effectiveness and adaptability of existing multi-agent sys-
+tems(Cemrietal.,2025). Overcomingtheselimitationsrequiresamoreadvancedframeworkthat
+enablesflexibleexecution,dynamicagentroles,andreliable,context-awarecommunication.
+3 AIME OVERVIEW
+Aimeisanovelmulti-agentsystemthattransformsthetraditionalstaticplan-and-executeparadigm
+intodynamic,reactiveplanningandexecution. Itoperatesontheprincipleofdynamicadaptation,
+wherebothtaskallocationandagentcapabilitiesevolvebasedonreal-timeexecutionfeedbackand
+progressupdates.
+3.1 FRAMEWORK
+The Aime framework consists of four core components that work in concert to enable dynamic
+multi-agentcollaboration.
+Figure1: TheworkflowofAimeframework.
+DynamicPlanner. TheDynamicPlannerservesasthecentralorchestratorfortaskmanagement.
+It decomposes high-level objectives into a hierarchical structure of executable subtasks and main-
+tains a global task list that tracks the status of each subtask. It continuously monitors execution
+progress and dynamically adapts the plan based on feedback from Dynamic Actors and status up-
+datesfromtheProgressManagementModule.
+Actor Factory. The Actor Factory is responsible for instantiating specialized actors tailored to
+specific subtask requirements. Upon receiving a subtask, the factory analyzes its specifications to
+determine the optimal configuration for an actor. This process involves selecting an appropriate
+persona, a relevant knowledge base, and a necessary set of tools. The factory then assembles the
+actorwithcustomizedpromptsandsystemconfigurations, ensuringeachactorispurpose-builtfor
+itsassignedtask.
+Dynamic Actor. A Dynamic Actor is an autonomous agent that executes specific subtasks as-
+signed by the Dynamic Planner. Each actor employs the ReAct framework (Yao et al., 2023),
+4
+
+--- Page 5 ---
+
+AimeTeam
+operatingthroughiterativecyclesof“Reasoning”and“Action”. Withineachcycle,theactorselects
+themostsuitabletoolfromitspre-configuredtoolkit,performsanaction,andthenevaluatestheout-
+comebasedontheresultingobservation. Thisloopcontinuesuntilthesubtask’scompletioncriteria
+aremet.
+Progress Management Module. The Progress Management Module functions as the shared
+memory and central state for system-wide coordination. It maintains a structured representation
+oftheentiretaskhierarchyandthereal-timestatusofallsubtasks. Thiscentralizedrecordensuresa
+consistentunderstandingofprogressamongtheDynamicPlannerandallactors. Crucially,byem-
+beddingexplicitcompletioncriteriawithineachtaskentry,themoduleprovidesclearandobjective
+standardsforvalidatingtaskcompletion.
+3.2 WORKFLOW
+TheAimeframeworkoperatesthroughtheiterativeworkflowthatorchestratesthedynamiccollab-
+orationamongitscomponents. AsillustratedinFigure1,theprocessbeginswithauserrequestand
+proceeds through a cycle of planning, actor instantiation, execution, and state updates, detailed as
+follows:
+Step1: TaskDecomposition. The workflow commences when the Dynamic Planner receives a
+taskfromtheuser. Theplannerdecomposesthisrequestintoastructuredplanofsubtasks
+andinitializesthecorrespondingtasklistintheProgressManagementModule.
+Step2: (Sub)TaskDispatch. The Dynamic Planner then identifies the next executable subtask
+fromtheplananddispatchesitsspecificationtotheActorFactory.
+Step3: ActorInstantiation. Upon receiving the subtask specification, the Actor Factory instan-
+tiates a specialized Dynamic Actor. This actor is purpose-built for the subtask, equipped
+withtheprecisepersona,knowledge,andtoolsrequiredforeffectiveexecution.
+Step4: ReActExecution. Thenewlyinstantiatedactorexecutesitsassignedsubtaskbyfollowing
+theReActparadigm. Itoperatesinaloopofreasoningandaction,invokingtoolsfromits
+toolkittomakeincrementalprogresstowardthesubtask’sgoal.
+Step5: ProgressUpdate. During execution, the actor continuously reports status updates to the
+Progress Management Module. This ensures that the global task state remains synchro-
+nizedandaccessibletoallcomponents,particularlytheDynamicPlanner.
+Step6: EvaluationandIteration. Onceasubtaskiscompleted,theactorreportsthefinaloutcome
+totheDynamicPlanner. Theplannerevaluatesthisoutcome,updatestheglobalplan,and
+returnstoStep2todispatchthenextavailablesubtask.Thiscyclerepeatsuntilthetop-level
+userrequestissuccessfullyfulfilled.
+Thisintegratedworkflowdirectlyaddressesseveralkeychallengesinmulti-agentcollaboration.The
+dynamicplanninganddispatchloop(Steps2&6)ensurescontext-awaretaskallocation,overcom-
+ingtherigidityofstatic,predefinedplans. ThecentralizedProgressManagementModule(Step1&
+5)providesasinglesourceoftruthfortaskstatus,ensuringefficientinformationsharingandreduc-
+ingcommunicationoverhead. Finally,on-the-flyactorinstantiation(Step3)allowsforflexiblerole
+definition,creatingactorspreciselytailoredtothetaskathand,unlikesystemswithfixedactorroles.
+4 METHODOLOGY
+This section details the core components of the Aime framework: the Dynamic Planner (Sec-
+tion 4.1), the Actor Factory (Section 4.2), and the Dynamic Actor (Section 4.3). We then explain
+howthesecomponentsinteractviatheProgressManagementModule(Section4.4),whichservesas
+thecentralcoordinationhub.
+4.1 DYNAMICPLANNER
+TheDynamicPlannerisdesignedtoaddresstheexecutionrigidityinherentintraditionalplan-and-
+execute frameworks. In such frameworks, the planner typically remains idle until all subtasks are
+5
+
+--- Page 6 ---
+
+AimeTeam
+complete, resulting in a bottleneck for adaptation. In contrast, our Dynamic Planner integrates a
+high-levelstrategicoverviewwithadaptive,incrementalexecution. Thisdualfocusallowsthesys-
+temtomaintainaclearpathtowardthefinalgoalwhileremainingresponsivetoexecutiondynamics.
+At its core, the planner manages two operational levels: maintaining the global task structure and
+determining the immediate next action. We formalize this dual responsibility as a single, iterative
+reasoning step. Given an overall goal G, at each step t, the planner, denoted as agent A ,
+planner
+assessesthecurrenttasklist,L ,andthehistoryofpastoutcomes,H ={o ,...,o }. Itsoperation
+t t 1 t
+isdefinedbythefunction:
+(L ,g )=LLM (P ,(G,L ,H )) (1)
+t+1 t+1 planner planner t t
+Theplannerproducestwooutputsineachiteration:
+• L is the updated global task list. This represents the planner’s strategic or ”big-step”
+t+1
+output,reflectingarevisedunderstandingofthetaskhierarchybasedonnewinformation.
+If no major strategic change is required, L may simply be a copy of L with updated
+t+1 t
+taskstatuses.
+• g isthespecific,executableactionforthesystemtoperformnext. Thisisthetacticalor
+t+1
+”small-step”output,suchasdispatchingasubtasktotheActorFactory.
+This formulation enables remarkable adaptability. For instance, if a subtask fails, the planner can
+make both strategic and tactical adjustments in a single iteration. Its strategic reasoning might
+modifytheglobalplanL toincludeanewcontingencysubtask.Concurrently,itstacticaldecision
+t+1
+g wouldbetodispatchthisnewsubtaskforimmediateexecution. Thisseamlessintegrationof
+t+1
+planningandre-planningisakeyadvantageofourapproach.
+The planner’s interaction with the system state is strictly mediated through the structured task list
+L maintained by the Progress Management Module. This disciplined approach ensures state con-
+sistency across the system. By maintaining a dynamic equilibrium between global planning and
+immediate action, the Dynamic Planner serves as the cornerstone of Aime’s resilience and effec-
+tivenessincomplex,evolvingenvironments.
+4.2 ACTORFACTORY
+Toovercomethelimitationsofpredefinedagentroles,AimeintroducestheActorFactory,acompo-
+nentthatimplementswhatwetermDynamicActorInstantiation. Insteadofselectingfromafixed
+poolofgeneral-purposeagents,thefactoryassemblesspecializedactorson-demand,tailoredtothe
+preciserequirementsofagivensubtaskg .
+t
+Upon receiving subtask g from the Dynamic Planner, the factory analyzes its specifications to
+t
+determinethenecessarycapabilities. Itthenconstructsanewactor,A ,byselectingandcomposing
+t
+componentsfromcuratedpools. Thisgenerationprocessisdefinedas:
+A =F (g ) where A ={LLM ,T ,P ,M } (2)
+t factory t t t t t t
+Thefactory’sprimaryfunctionsaretoselectadedicatedtoolkitT andconstructacustomizedsystem
+t
+promptP .
+t
+ToolkitSelection. AsignificantchallengeincomplexMASismanagingalargeanddiversesetof
+tools. Presentingallavailabletoolstoanagent’sLLMcanleadtoinefficientselectionorerrors. To
+mitigatethis,Aimeorganizestoolsintopre-packagedbundles,eachcateringtoaspecificfunctional
+category(e.g.,‘WebSearch’bundle,‘FileSystem’bundle). Thefactoryselectsappropriatebundles
+toformafinaltoolkit,T ,ratherthanpickingfromaflatlistofindividualtools. Thisbundle-based
+t
+approachensuresfunctionalcompletenessandreducestheriskofcriticaltoolomissions.
+PromptGeneration. ThesystempromptP isdynamicallyassembledfromseveralmodularcom-
+t
+ponentstocreateapreciseoperationalcontextfortheactor:
+6
+
+--- Page 7 ---
+
+AimeTeam
+P =Compose(ρ ,desc(T ),κ ,ε,Γ) (3)
+t t t t
+wherethecomponentsare:
+• Persona (ρ ). Defines the actor’s professional role and expertise (e.g., “An expert travel
+t
+plannerspecializingincreatinguniqueandmemorablejourneys.”). Thepersonaisgener-
+atedtoalignwiththesubtaskg ,effectivelycreatingadedicatedexpert.
+t
+• ToolDescriptions(desc(T )).Providesaconcise,textualdescriptionoftheselectedtoolkit
+t
+T . Supplying a minimal yet sufficient set of tools narrows the LLM’s decision space,
+t
+improvingfocusandperformance.
+• Knowledge (κ ). Consists of highly relevant information dynamically retrieved from a
+t
+knowledgebasetosupportthesubtask. Foratrip-planningtask,thiscouldincludetipson
+identifyinglocalattractions.
+• Environment (ε). Provides global context, such as operating system details or system-
+wide constraints (e.g., current time, access permissions), ensuring the actor’s actions are
+environmentallyaware.
+• Format(Γ). Specifiesthe requiredoutput structure(e.g., a JSONschema), ensuring that
+theactor’sresponsescanbereliablyparsedforautomatedprocessingandstateupdates.
+Summary. This on-the-fly instantiation mechanism offers two distinct advantages over systems
+withstaticagentroles. First,itequipsactorswiththeexactcapabilitiesrequiredforthetask,elim-
+inating both capability gaps and the cognitive load of irrelevant tools. Second, it enhances sys-
+temextensibility;newcapabilitiescanbeintroducedbysimplyaddingnewtoolbundlesorknowl-
+edgemodules,withoutthecostlyprocessofredesigningandre-validatingalargesetofstaticagent
+archetypes.
+4.3 DYNAMICACTOR
+Once instantiated by the Actor Factory, a Dynamic Actor functions as an autonomous agent dedi-
+cated to executing its assigned subtask, g . Its behavior is governed by the ReAct paradigm (Yao
+t
+etal.,2023),whichintegratesreasoningandactionintoaniterativeexecutioncycle.
+Theactor,A ,executesitssubtaskbyrepeatedlyinvokingitscoreLLM.Ateachstepkofitsinternal
+t
+loop,theactoranalyzesitsobjectiveandlocalhistorytogenerateanewthought(thought )anda
+k+1
+subsequentaction(action ). Thisprocessisformalizedas:
+k+1
+(thought ,action )=LLM (P ,(g ,H )) (4)
+k+1 k+1 t t t k
+whereH isthesequenceofprevious(action,observation)pairsstoredintheactor’slocalmemory
+k
+M . Thiscycleunfoldsthroughthreedistinctphases:
+t
+• Reasoning. Theactorreflectsonthesubtaskgoal,itspastactions,andtheresultingobser-
+vationstoformulateaplanforthenextimmediatestep.
+• Action. Basedonitsreasoning,theactorselectsandexecutesanaction,typicallyacallto
+atoolfromitsspecializedtoolkitT .
+t
+• Observation. Theactorreceivestheoutputfromtheexecutedtool. Thisnewobservation
+isappendedtoitshistoryH andservesascriticalcontextforthenextreasoningphase.
+k
+A key feature of the Dynamic Actor is its ability to communicate progress proactively.
+To facilitate this, the actor’s toolkit T is augmented with a special system-provided tool:
+t
+Update Progress(status, message). Crucially, the decision to invoke this tool is not
+hard-coded;rather,theactor’sLLMautonomouslydeterminestheappropriatemomentsforreport-
+ing,suchasaftercompletingasignificantmilestoneorencounteringanobstacle. Thismechanism
+providestheDynamicPlannerwithanearreal-timeviewofongoingactivitieswithoutinterrupting
+theactor’sprimaryworkflow.
+7
+
+--- Page 8 ---
+
+AimeTeam
+The execution loop terminates when the subtask’s completion criteria are met. At this point, the
+actorgeneratesafinal,structuredreporto fortheDynamicPlanner. Thisreportincludesaconclu-
+t
+sivesummaryoftheoutcome,afinalstatusupdate, andanyrelevantartifacts(e.g., filepaths, data
+outputs)requiredbysubsequenttasks.
+4.4 PROGRESSMANAGEMENTMODULE
+A central challenge in multi-agent systems is maintaining a coherent and globally consistent un-
+derstanding of task progress. The Progress Management Module addresses this by serving as the
+framework’scentralizedstatemanager,establishingasinglesourceoftruthfortheentiretaskhier-
+archy. ThisensuresthattheDynamicPlanner andallDynamicActorsoperateonashared,unified
+viewofthesystem’sstate.
+4.4.1 COREDATASTRUCTURE: THEPROGRESSLIST
+The cornerstone of this module is a globally accessible, hierarchical data structure we call the
+progresslist,denotedbyL. Itrepresentsthecompletetaskdecomposition,fromhigh-levelobjec-
+tivestogranularsubtasks. Atypicalimplementationusesahuman-readableandmachine-parsable
+formatlikeaMarkdowntasklist:
+(cid:7) (cid:4)
+- Objective 1: Perform Initial Research
+- [x] Sub-objective 1.1: Research top attractions
+- [x] Sub-objective 1.2: Investigate transportation options
+- Objective 2: Finalize Itinerary and Budget
+- [ ] Sub-objective 2.1: Research hotel accommodations
+- [ ] Sub-objective 2.2: Calculate total estimated budget
+- [ ] Sub-objective 2.3: Create final itinerary document
+(cid:6) (cid:5)
+Thekeycharacteristicsoftheprogresslistare:
+• Real-timeStatusTracking. Eachitemismarkedwithitscurrentstatus(e.g., completed
+‘[x]’,pending‘[]’),providinganat-a-glanceviewofsystem-wideprogress.
+• EmbeddedContextandDependencies. Thehierarchicalstructureimplicitlyencodesde-
+pendenciesbetweentasks.Furthermore,eachitemcanembedorlinktoexplicitcompletion
+criteria,providingobjectivestandardsforvalidation.
+4.4.2 COORDINATIONVIAPROGRESSUPDATES
+Coordination between the planner and actors is achieved through two communication protocols
+targeting the progress list: real-time synchronization during execution and structured conclusion
+upontaskcompletion.
+Real-time Synchronization. As detailed in Section 4.3, each Dynamic Actor can autonomously
+reportincrementalprogressbyinvokingtheUpdate Progresstool. Thisactionpushesupdates
+to the progress list, allowing the actor to signal key milestones (e.g., ”shortlisted three potential
+hotelsinTokyo”)orflagissues(e.g.,”directflightsonthedesireddatearefullybooked”)beforethe
+entire subtask is finished. This mechanism provides the Dynamic Planner with high-fidelity, near
+real-timevisibilityintoongoingactivities,enablingmoreproactiveandinformeddecision-making.
+StructuredTaskConclusion. WhenanactorA completesitsassignedsubtask,itcommunicates
+t
+thefinaloutcometotheDynamicPlannerusingastandardizedconclusionreport,o . Thismessage
+t
+triggersaformalupdatetotheglobalstate,whichtheplannerusestomodifytheprogresslist.
+Thefinalreporto isastructuredpayloadcomposedofthreeessentialparts:
+t
+• StatusUpdate.Anexplicitupdatefortheassigneditemsintheprogresslist,markingthem
+ascompletedorfailed.
+• Conclusion Summary. A narrative summary of the task’s execution. This includes the
+final outcome, obstacles encountered, and key insights, providing rich context beyond a
+simplesuccess/failflag.
+8
+
+--- Page 9 ---
+
+AimeTeam
+• ReferencePointers.Astructuredcollectionofpointerstocriticalartifactsproducedduring
+the task (e.g., files, database record IDs, URLs), ensuring that outputs are traceable and
+accessibleforsubsequenttasks.
+Bycombiningashareddatastructurewithdualcommunicationprotocols—oneforreal-timeupdates
+andoneforfinalconclusions—theProgressManagementModuleensuresthatcontextisexplicitly
+maintained,accuratelyupdated,andefficientlytransferredthroughoutthetasklifecycle. Thisforms
+arobustfoundationfordynamicmulti-agentcollaboration.
+5 EXPERIMENTS
+To evaluate the effectiveness of our proposed framework, we conducted a series of experiments
+acrossthreediverseandchallengingbenchmarks.
+5.1 EXPERIMENTALSETUP
+Datasets. We selected three benchmarks that represent a broad spectrum of complex, multi-step
+tasksforautonomousagents:
+• GAIA (Mialon et al., 2024) is a challenging benchmark for general AI assistants, com-
+prisingquestionsthatrequiremulti-stepreasoning,tooluse,andcomprehensionofmulti-
+modalcontent. Weevaluateonthepublictestsetusingtheofficialexactstringmatching
+metric.
+• SWE-benchVerified(Jimenezetal.,2024)isacuratedsubsetofSWE-benchforassessing
+an agent’s ability to resolve real-world software engineering problems. Success is rigor-
+ouslyevaluatedbyrunningunitteststoensuretheprovidedfixiscorrectandintroducesno
+regressions.
+• WebVoyager (He et al., 2024) is an end-to-end benchmark for web agents that interact
+withlivewebsites. Performanceismeasuredbytasksuccessrateon15real-worldsites.
+Baselines. We compare Aime against state-of-the-art specialized baselines for each domain. To
+ensureafaircomparison,allagents,includingourown,arepoweredbythesameunderlyingLLM,
+whereapplicable.
+• OnGAIA,wecompareagainstleadinggeneral-purposeagentframeworks:Langfun,Trase,
+andOWL(Huetal.,2025).
+• OnSWE-benchVerified,ourbaselinesaretop-performingcodeagents: SWE-agent(Yang
+etal.,2024)andOpenHands(Wangetal.,2025).
+• OnWebVoyager,wecompareagainstprominentwebagents:Browseruse(Mu¨ller&Zˇunicˇ,
+2024),Operator(OpenAI,2025),andSkyvern(Skyvern,2025).
+5.2 EXPERIMENTALRESULTS
+Table 1 presents the main experimental results, comparing Aime against state-of-the-art special-
+izedagentsontheirrespectivebenchmarks. Thedataclearlydemonstratesthatourframeworknot
+onlycompeteswithbutconsistentlyoutperformsthesehighly-tunedsystems,establishingitsstrong
+generalizationcapabilitiesandanewstate-of-the-artacrossthesediversedomains.
+OnGAIA,Aimeachievesanewstate-of-the-artsuccessrateof77.6%,outperformingthestrongest
+baselines like Langfun. We attribute this significant performance gain to the Dynamic Planner,
+which allows the system to flexibly adapt its strategy when initial reasoning paths fail, a crucial
+capabilityforGAIA’scomplex,multi-stepproblems.
+OnSWE-benchVerified,Aimeresolves66.4%oftheissues,surpassingtopspecializedagentslike
+OpenHands. While the performance of leading agents in this domain is highly competitive, we
+believeouradvantagestemsfromtheActorFactory. Itcaninstantiatedifferenttypesofagentson-
+the-fly(e.g.,a”code-reader”tounderstandcontext,thena”debugger”toisolatethefault),leading
+toamorerobustandeffectiveproblem-solvingprocess.
+9
+
+--- Page 10 ---
+
+AimeTeam
+Table1: Performance comparisonofAime againstspecialized baselinesacrossthree benchmarks.
+Baselinesareevaluatedonlyontheirtargetdomain,whileAimeisevaluatedonallthree.Bestscores
+ineachcolumnareinbold.
+Model GAIA SWE-BenchVerified WebVoyager
+(SuccessRate%) (Resolved%) (SuccessRate%)
+General-PurposeAgents
+Langfun 71.5 - -
+Trase 70.3 - -
+OWL 69.1 - -
+SoftwareEngineeringAgents
+SWE-agent - 62.4 -
+OpenHands - 65.8 -
+WebNavigationAgents
+Browseruse - - 89.1
+Operator - - 87
+Skyvern - - 85.6
+Aime(Ours) 77.6 66.4 92.3
+On WebVoyager, Aime demonstrates superior robustness in live web environments, achieving an
+impressive92.3%successrate.ThisperformanceexceedsstrongbaselineslikeBrowseruse.Unlike
+agentswithfixedplansthatmayfalterwithunexpectedwebsitechanges,Aime’stightfeedbackloop
+betweentheDynamicActorsandtheDynamicPlannerenablesittoimmediatelyre-planandrecover
+fromerrors,resultinginhighertaskcompletion.
+6 RELATED WORK
+The field of Multi-Agent Systems (MAS) has been transformed by the rise of Large Language
+Models(LLMs)(Brownetal.,2020;OpenAI,2023). Unliketraditionalsystemsthatreliedonrigid,
+formalplanningmodels(Ghallabetal.,2004;Rao&Georgeff,1995),modernMASleverageLLMs
+ascognitiveengines,enablingunprecedentedflexibilityandcoordinationthroughnaturallanguage.
+Thishasspurredthedevelopmentofnewcollaborationparadigms,whichwereviewbelow.
+6.1 ROLE-BASEDMULTI-AGENTCOLLABORATION
+A dominant paradigm in modern LLM-based MAS involves assigning specialized roles to agents
+to decompose complex tasks, often inspired by human organizational structures. Frameworks like
+MetaGPT(Hongetal.,2024)andChatDev(Qianetal.,2024)simulateasoftwarecompany,where
+agents playing roles like ”product manager” or ”engineer” follow structured protocols to achieve
+their objectives. Similarly, MAGIS (Tao et al., 2024) and MarsCode Agent (Liu et al., 2024)
+designdedicatedStandardOperatingProcedures(SOPs)forsoftwaredevelopment. CodeR(Chen
+etal.,2024)extendsthisbypredefiningmultipleSOPsandselectingonebasedonthetaskathand.
+Whilethesesystemsdemonstratethepowerofstructuredcollaboration, theirworkflowsandagent
+capabilitiesarelargelystatic. Thisrigiditylimitstheirabilitytoadapttounforeseencircumstances
+ortasksthatdeviatefromthepredefinedSOPs. OtherframeworkslikeAutoGen(Wuetal.,2023)
+andAgentVerse(Chenetal.,2023)offermoreflexiblecommunicationpatterns,butthedefinition
+ofagentrolesandtheircapabilitiesoftenremainsfixed.
+10
+
+--- Page 11 ---
+
+AimeTeam
+6.2 AUTOMATEDAGENTARCHITECTUREDESIGN
+Recognizing the limitations of static designs, a recent line of research focuses on automatically
+searchingforoptimalagentarchitectures. Theseapproaches,however,typicallyaimtofindasupe-
+riorstaticdesignbeforeexecutionbegins.
+• WorkflowOptimization: Severalworksaimtoautomatethegenerationofthecollaboration
+plan itself. For example, AOP (Li et al., 2025) investigates an agent-oriented planning
+methodthatleveragesfasttaskdecompositionandarewardmodelforefficientevaluation.
+Others,likeAFlow(Zhangetal.,2025b)andFlow(Niuetal.,2025),automaticallygener-
+ategraph-basedworkflows,thoughoftenwiththesimplifyingassumptionofhomogeneous
+agent capabilities. More advanced approaches such as Agentic Supernet (Zhang et al.,
+2025a)andFlowReasoner(Gaoetal.,2025)evenlearntogeneratetheseworkflowsfrom
+predefined agentic operators. A common limitation, however, is that these methods pro-
+duce a static collaboration plan prior to execution, making them vulnerable to real-time
+eventsthatdeviatefromtheinitialstrategy.
+• AgentRoleOptimization:Complementaryresearchfocusesonoptimizingindividualagent
+design. AgentSquare (Shang et al., 2025) searches for an optimal agent architecture by
+composing it from a set of given modules, while ADAS (Hu et al., 2024) automates the
+creationofasingleagentviacodegeneration. Thesemethodsenhanceagentcomponents
+butdonotdirectlyaddressthedynamicsofmulti-agentcollaboration.
+Incontrasttothesemethods,Aimeprovidesaframeworkfordynamicadaptationduringexecution.
+It combines a Dynamic Planner, which refines plans based on real-time outcomes, with an Actor
+FactorythatimplementsDynamicActorInstantiationtoassemblespecializedagentson-demand.
+This approach of combining reactive planning with on-the-fly specialization offers a practical and
+resilientsolutionforadaptability, avoidingthehighcomputationaloverheadofofflinearchitecture
+search.
+7 CONCLUSION
+ThispaperintroducedAime,anovelframeworkthatenablesdynamic,reactivecollaborationthrough
+threekeyinnovations:aDynamicPlannerforadaptivestrategy,anActorFactoryforon-demandin-
+stantiationofspecializedagents,andacentralizedProgressManagementModuleforcoherentstate
+awareness. Itwasdesignedspecificallytoaddresscriticalweaknessesintheconventionalplan-and-
+executeframework,namelyitsrigidplanning,staticagentroles,andinefficientcommunication.Our
+experiments confirm that this approach is highly effective, with Aime significantly outperforming
+traditionalmodelsinadaptability,efficiency,andoveralltasksuccessrate.
+Our future work focus on enhancing scalability for larger agent teams and empowering agents to
+autonomouslyacquirenewcapabilities,reducingtheirrelianceonpre-curatedtools. Byshiftingthe
+paradigm from static execution to dynamic adaptation, Aime represents a significant step toward
+buildingmoreresilientandintelligentautonomoussystems.
+REFERENCES
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal,
+Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel
+Herbert-Voss,GretchenKrueger,TomHenighan,RewonChild,AdityaRamesh,DanielZiegler,
+JeffreyWu,ClemensWinter,ChrisHesse,MarkChen,EricSigler,MateuszLitwin,ScottGray,
+BenjaminChess,JackClark,ChristopherBerner,SamMcCandlish,AlecRadford,IlyaSutskever,
+andDarioAmodei. Languagemodelsarefew-shotlearners. InAdvancesinNeuralInformation
+ProcessingSystems(NeurIPS),volume33,pp.1877–1901.CurranAssociates,Inc.,2020.
+Mert Cemri, Melissa Z. Pan, Shuyi Yang, Lakshya A. Agrawal, Bhavya Chopra, Rishabh Ti-
+wari,KurtKeutzer,AdityaG.Parameswaran,DanKlein,KannanRamchandran,MateiZaharia,
+Joseph E. Gonzalez, and Ion Stoica. Why do multi-agent LLM systems fail? ArXiv Preprint,
+arXiv:2503.13657,2025.
+11
+
+--- Page 12 ---
+
+AimeTeam
+YupengChang,XuWang,JindongWang,YuanWu,LinyiYang,KaijieZhu,HaoChen,Xiaoyuan
+Yi,CunxiangWang,YidongWang,WeiYe,YueZhang,YiChang,PhilipS.Yu,QiangYang,and
+Xing Xie. A survey on evaluation of large language models. ACM Transactions on Intelligent
+SystemsandTechnology,15(3):39:1–39:45,2024.
+DongChen,ShaoxinLin,MuhanZeng,DaoguangZan,Jian-GangWang,AntonCheshkov,JunSun,
+Hao Yu, Guoliang Dong, Artem Aliev, Jie Wang, Xiao Cheng, Guangtai Liang, Yuchi Ma, Pan
+Bian, Tao Xie, and Qianxiang Wang. Coder: Issue resolving with multi-agent and task graphs.
+ArXivPreprint,arXiv:2406.01304,2024.
+Weize Chen, Yusheng Su, Jingwei Zuo, Cheng Yang, Chenfei Yuan, Chen Qian, Chi-Min Chan,
+Yujia Qin, Yaxi Lu, Ruobing Xie, Zhiyuan Liu, Maosong Sun, and Jie Zhou. Agentverse: Fa-
+cilitatingmulti-agentcollaborationandexploringemergentbehaviorsinagents. ArXivPreprint,
+arXiv:2308.10848,2023.
+Hongcheng Gao, Yue Liu, Yufei He, Longxu Dou, Chao Du, Zhijie Deng, Bryan Hooi, Min
+Lin, and Tianyu Pang. Flowreasoner: Reinforcing query-level meta-agents. ArXiv Preprint,
+arXiv:2504.15257,2025.
+MalikGhallab,DanaS.Nau,andPaoloTraverso. Automatedplanning-theoryandpractice. Else-
+vier,2004. ISBN978-1-55860-856-6.
+TaichengGuo,XiuyingChen,YaqiWang,RuidiChang,ShichaoPei,NiteshV.Chawla,OlafWiest,
+and Xiangliang Zhang. Large language model based multi-agents: A survey of progress and
+challenges. In Proceedings of the 23rd International Joint Conference on Artificial Intelligence
+(IJCAI),pp.8048–8057.ijcai.org,2024.
+HongliangHe,WenlinYao,KaixinMa,WenhaoYu,YongDai,HongmingZhang,ZhenzhongLan,
+andDongYu. Webvoyager: Buildinganend-to-endwebagentwithlargemultimodalmodels. In
+Proceedingsofthe62ndAnnualMeetingoftheAssociationforComputationalLinguistics(ACL),
+pp.6864–6890.AssociationforComputationalLinguistics,2024.
+Sirui Hong, Mingchen Zhuge, Jonathan Chen, Xiawu Zheng, Yuheng Cheng, Jinlin Wang, Ceyao
+Zhang,ZiliWang,StevenKaShingYau,ZijuanLin,LiyangZhou,ChenyuRan,LingfengXiao,
+ChenglinWu,andJu¨rgenSchmidhuber. Metagpt: MetaprogrammingforAmulti-agentcollab-
+orative framework. In The 12th International Conference on Learning Representations (ICLR).
+OpenReview.net,2024.
+MengkangHu,YuhangZhou,WendongFan,YuzhouNie,BoweiXia,TaoSun,ZiyuYe,Zhaoxuan
+Jin,YingruLi,QiguangChen,ZeyuZhang,YifengWang,QianshuoYe,BernardGhanem,Ping
+Luo, andGuohaoLi. OWL:optimizedworkforcelearningforgeneralmulti-agentassistancein
+real-worldtaskautomation. ArXivPreprint,arXiv:2505.23885,2025.
+Shengran Hu, Cong Lu, and Jeff Clune. Automated design of agentic systems. ArXiv Preprint,
+arXiv:2408.08435,2024.
+Xu Huang, Weiwen Liu, Xiaolong Chen, Xingmei Wang, Hao Wang, Defu Lian, Yasheng Wang,
+RuimingTang,andEnhongChen. UnderstandingtheplanningofLLMagents: Asurvey. ArXiv
+Preprint,arXiv:2402.02716,2024.
+CarlosE.Jimenez,JohnYang,AlexanderWettig,ShunyuYao,KexinPei,OfirPress,andKarthikR.
+Narasimhan. Swe-bench: Can language models resolve real-world github issues? In The 12th
+InternationalConferenceonLearningRepresentations(ICLR).OpenReview.net,2024.
+AoLi, YuexiangXie, SongzeLi, FugeeTsung, BolinDing, andYaliangLi. Agent-orientedplan-
+ninginmulti-agentsystems. InThe13thInternationalConferenceonLearningRepresentations
+(ICLR).OpenReview.net,2025.
+Yizhou Liu, Pengfei Gao, Xinchen Wang, Jie Liu, Yexuan Shi, Zhao Zhang, and Chao Peng.
+Marscodeagent: Ai-nativeautomatedbugfixing. ArXivPreprint,arXiv:2409.00899,2024.
+Gre´goireMialon,Cle´mentineFourrier,ThomasWolf,YannLeCun,andThomasScialom. GAIA:a
+benchmarkforgeneralAIassistants. InThe12thInternationalConferenceonLearningRepre-
+sentations(ICLR).OpenReview.net,2024.
+12
+
+--- Page 13 ---
+
+AimeTeam
+Magnus Mu¨ller and Gregor Zˇunicˇ. Browser use: Enable ai to control your browser, 2024. URL
+https://github.com/browser-use/browser-use.
+Boye Niu, Yiliao Song, Kai Lian, Yifan Shen, Yu Yao, Kun Zhang, and Tongliang Liu. Flow:
+Modularized agentic workflow automation. In The 13th International Conference on Learning
+Representations(ICLR).OpenReview.net,2025.
+OpenAI. GPT-4technicalreport. ArXivPreprint,arXiv:2303.08774,2023.
+OpenAI. Introducing operator, 2025. URL https://openai.com/index/
+introducing-operator.
+ChenQian,WeiLiu,HongzhangLiu,NuoChen,YufanDang,JiahaoLi,ChengYang,WeizeChen,
+YushengSu, XinCong, JuyuanXu, DahaiLi, ZhiyuanLiu, andMaosongSun. Chatdev: Com-
+municativeagentsforsoftwaredevelopment. InProceedingsofthe62ndAnnualMeetingofthe
+Association for Computational Linguistics (ACL), pp. 15174–15186. Association for Computa-
+tionalLinguistics,2024.
+YujiaQin,ShihaoLiang,YiningYe,KunlunZhu,LanYan,YaxiLu,YankaiLin,XinCong,Xiangru
+Tang,BillQian,SihanZhao,LaurenHong,RunchuTian,RuobingXie,JieZhou,MarkGerstein,
+DahaiLi, ZhiyuanLiu, andMaosongSun. Toolllm: Facilitatinglargelanguagemodelstomas-
+ter 16000+ real-world apis. In The 12th International Conference on Learning Representations
+(ICLR).OpenReview.net,2024.
+AnandS.RaoandMichaelP.Georgeff. BDIagents: Fromtheorytopractice. InProceedingsofthe
+1stInternationalConferenceonMultiagentSystems,pp.312–319.TheMITPress,1995.
+YuShang,YuLi,KeyuZhao,LikaiMa,JiaheLiu,FengliXu,andYongLi.Agentsquare:Automatic
+LLMagentsearchinmodulardesignspace. InThe13thInternationalConferenceonLearning
+Representations(ICLR).OpenReview.net,2025.
+Yongliang Shen, Kaitao Song, Xu Tan, Dongsheng Li, Weiming Lu, and Yueting Zhuang. Hug-
+ginggpt: Solving ai tasks with chatgpt and its friends in hugging face. In Advances in Neural
+Information Processing Systems (NeurIPS), volume 36, pp. 38154–38180. Curran Associates,
+Inc.,2023.
+ZhengliangShi,ShenGao,LingyongYan,YueFeng,XiuyiChen,ZhuminChen,DaweiYin,Suzan
+Verberne,andZhaochunRen. Toollearninginthewild: Empoweringlanguagemodelsasauto-
+matictoolagents.InProceedingsoftheACMonWebConference(WWW),pp.2222–2237.ACM,
+2025.
+Skyvern. Automatebrowser-basedworkflowswithllmsandcomputervision,2025. URLhttps:
+//www.skyvern.com/.
+Wei Tao, Yucheng Zhou, Yanlin Wang, Wenqiang Zhang, Hongyu Zhang, and Yu Cheng. Magis:
+Llm-basedmulti-agentframeworkforgithubissueresolution. InAdvancesinNeuralInformation
+ProcessingSystems(NeurIPS),volume37,pp.51963–51993.CurranAssociates,Inc.,2024.
+Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan,
+andAnimaAnandkumar. Voyager: Anopen-endedembodiedagentwithlargelanguagemodels.
+TransactionsonMachineLearningResearch,2024,2024a.
+LeiWang,ChenMa,XueyangFeng,ZeyuZhang,HaoYang,JingsenZhang,ZhiyuanChen,Jiakai
+Tang,XuChen,YankaiLin,WayneXinZhao,ZheweiWei,andJirongWen. Asurveyonlarge
+languagemodelbasedautonomousagents. FrontiersofComputerScience,18(6):186345,2024b.
+XingyaoWang, BoxuanLi, YufanSong, Frank F.Xu, Xiangru Tang, MingchenZhuge, Jiayi Pan,
+YueqiSong,BowenLi,JaskiratSingh,HoangH.Tran,FuqiangLi,RenMa,MingzhangZheng,
+BillQian,YanjunShao,NiklasMuennighoff,YizheZhang,BinyuanHui,JunyangLin,andetal.
+Openhands: An open platform for AI software developers as generalist agents. In The 13th
+InternationalConferenceonLearningRepresentations(ICLR).OpenReview.net,2025.
+13
+
+--- Page 14 ---
+
+AimeTeam
+Qingyun Wu, Gagan Bansal, Jieyu Zhang, Yiran Wu, Shaokun Zhang, Erkang Zhu, Beibin Li,
+Li Jiang, Xiaoyun Zhang, and Chi Wang. Autogen: Enabling next-gen LLM applications via
+multi-agentconversationframework. ArXivPreprint,arXiv:2308.08155,2023.
+WaldenYan. Cognitionblog: Don’tbuildmulti-agents,2025. URLhttps://cognition.ai/
+blog/dont-build-multi-agents.
+JohnYang,CarlosE.Jimenez,AlexanderWettig,KilianLieret,ShunyuYao,KarthikNarasimhan,
+and Ofir Press. Swe-agent: Agent-computer interfaces enable automated software engineering.
+InAdvancesinNeuralInformationProcessingSystems(NeurIPS),volume37,pp.50528–50652.
+CurranAssociates,Inc.,2024.
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik R. Narasimhan, and Yuan
+Cao. React: Synergizing reasoning and acting in language models. In The 11th International
+ConferenceonLearningRepresentations(ICLR).OpenReview.net,2023.
+Guibin Zhang, Luyang Niu, Junfeng Fang, Kun Wang, Lei Bai, and Xiang Wang. Multi-agent
+architecturesearchviaagenticsupernet. ArXivPreprint,arXiv:2502.04180,2025a.
+Jiayi Zhang, Jinyu Xiang, Zhaoyang Yu, Fengwei Teng, Xionghui Chen, Jiaqi Chen, Mingchen
+Zhuge,XinCheng,SiruiHong,JinlinWang,BingnanZheng,BangLiu,YuyuLuo,andChenglin
+Wu. Aflow: Automatingagenticworkflowgeneration. InThe13thInternationalConferenceon
+LearningRepresentations(ICLR).OpenReview.net,2025b.
+Zeyu Zhang, Xiaohe Bo, Chen Ma, Rui Li, Xu Chen, Quanyu Dai, Jieming Zhu, Zhenhua Dong,
+and Ji-Rong Wen. A survey on the memory mechanism of large language model based agents.
+ArXivPreprint,arXiv:2404.13501,2024.
+14
+

@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -15,6 +14,7 @@ class ActorConfig:
     temperature: float = 0.7
     max_iterations: int = 50
     enable_auto_progress_update: bool = True
+    max_retries: int = 3
 
 
 @dataclass

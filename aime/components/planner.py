@@ -12,10 +12,11 @@ import re
 import asyncio
 import logging
 import json
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from aime.base.types import PlannerOutput, Task, TaskStatus
 from aime.base.llm import BaseLLM, Message
 from aime.base.config import PlannerConfig
+from aime.base.events import EventType
 from aime.components.progress_module import ProgressModule
 
 logger = logging.getLogger(__name__)
@@ -32,16 +33,23 @@ class Planner:
         goal: The root goal to achieve
     """
 
-    def __init__(self, base_llm: BaseLLM, config: PlannerConfig):
+    def __init__(
+        self,
+        base_llm: BaseLLM,
+        config: PlannerConfig,
+        emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
+    ):
         """
         Initialize the Planner component.
 
         Args:
             base_llm: The LLM to use for planning
             config: Configuration from aime.base.config
+            emit_event: Optional callback to emit events (used for real-time streaming).
         """
         self.base_llm = base_llm
         self.config = config
+        self.emit_event = emit_event
         self.goal: Optional[str] = None
         self._lock = asyncio.Lock()
 
@@ -134,6 +142,15 @@ class Planner:
             logger.warning("No valid action parsed, defaulting to wait")
             return PlannerOutput(action=PlannerOutput.Action.WAIT)
 
+        # Emit planner thought
+        if self.emit_event is not None:
+            self.emit_event(EventType.PLANNER_STEP_STARTED, {
+                "iteration": None,
+            })
+            self.emit_event(EventType.PLANNER_THOUGHT, {
+                "raw_output": response_content,
+            })
+
         # Process all mutation actions first
         dispatch_action: Optional[PlannerOutput] = None
         final_action: Optional[PlannerOutput] = None
@@ -152,6 +169,12 @@ class Planner:
                     )
                     plan_output.task_id = task.id
                     plan_output.subtask_id = task.id
+                    if self.emit_event is not None:
+                        self.emit_event(EventType.PLANNER_TASK_ADDED, {
+                            "task_id": task.id,
+                            "description": task.description,
+                            "completion_criteria": task.completion_criteria,
+                        })
 
             elif plan_output.action == PlannerOutput.Action.MODIFY_SUBTASK:
                 if plan_output.task_id:
@@ -161,11 +184,21 @@ class Planner:
                         description=plan_output.description,
                         completion_criteria=plan_output.completion_criteria,
                     )
+                    if self.emit_event is not None:
+                        self.emit_event(EventType.PLANNER_TASK_MODIFIED, {
+                            "task_id": plan_output.task_id,
+                            "description": plan_output.description,
+                            "completion_criteria": plan_output.completion_criteria,
+                        })
 
             elif plan_output.action == PlannerOutput.Action.DELETE_SUBTASK:
                 if plan_output.task_id:
                     logger.info(f"Deleting task {plan_output.task_id}")
                     await progress.delete_task(task_id=plan_output.task_id)
+                    if self.emit_event is not None:
+                        self.emit_event(EventType.PLANNER_TASK_DELETED, {
+                            "task_id": plan_output.task_id,
+                        })
 
             elif plan_output.action == PlannerOutput.Action.MARK_FAILED:
                 if plan_output.task_id:
@@ -175,6 +208,11 @@ class Planner:
                         status=TaskStatus.FAILED,
                         message=plan_output.message,
                     )
+                    if self.emit_event is not None:
+                        self.emit_event(EventType.PLANNER_TASK_MARKED_FAILED, {
+                            "task_id": plan_output.task_id,
+                            "reason": plan_output.message,
+                        })
 
             elif plan_output.action == PlannerOutput.Action.DISPATCH_SUBTASK:
                 # Save dispatch for after mutations are done
@@ -190,6 +228,10 @@ class Planner:
                 task = await progress.get_task(dispatch_action.task_id)
                 if task and task.status == TaskStatus.PENDING:
                     logger.info(f"Dispatching specified task: {task.id} - {task.description}")
+                    if self.emit_event is not None:
+                        self.emit_event(EventType.PLANNER_TASK_DISPATCHED, {
+                            "task_id": task.id,
+                        })
                     return PlannerOutput(
                         action=PlannerOutput.Action.DISPATCH_SUBTASK,
                         subtask_id=task.id,
@@ -200,6 +242,10 @@ class Planner:
             next_task = await self._find_next_dispatchable_task(progress)
             if next_task:
                 logger.info(f"Dispatching next task: {next_task.id} - {next_task.description}")
+                if self.emit_event is not None:
+                    self.emit_event(EventType.PLANNER_TASK_DISPATCHED, {
+                        "task_id": next_task.id,
+                    })
                 return PlannerOutput(
                     action=PlannerOutput.Action.DISPATCH_SUBTASK,
                     subtask_id=next_task.id,
@@ -211,6 +257,11 @@ class Planner:
 
         # If we have a final action (complete_goal or wait), use that
         if final_action:
+            if final_action.action == PlannerOutput.Action.COMPLETE_GOAL:
+                if self.emit_event is not None:
+                    self.emit_event(EventType.PLANNER_GOAL_COMPLETED, {
+                        "summary": final_action.summary or "Goal completed",
+                    })
             return final_action
 
         # Default to wait
@@ -429,15 +480,15 @@ class Planner:
             "in order to achieve the goal.\n\n"
             f"Overall Goal: {goal}\n\n"
             "Instructions:\n"
-            "1. Break the goal into logical sequential subtasks\n"
-            "2. For each subtask, provide a clear description and completion criteria\n"
-            "3. Output the list as JSON array\n"
-            "4. Each subtask must have 'description' and 'completion_criteria' fields\n\n"
+            "1. **Decompose ONLY when necessary**: If the goal is simple and self-contained (e.g., 'write a quicksort algorithm', 'add a login button'), keep it as a SINGLE subtask. DO NOT decompose into multiple unnecessary subtasks.\n"
+            "2. Only break into multiple subtasks when the goal is complex and requires distinct steps that can be worked on independently\n"
+            "3. For each subtask, provide a clear description and completion criteria\n"
+            "4. Output the list as JSON array\n"
+            "5. Each subtask must have 'description' and 'completion_criteria' fields\n\n"
             "Output format:\n"
             "```json\n"
             "[\n"
-            "  {\"description\": \"First subtask description\", \"completion_criteria\": \"How to tell it's done\"},\n"
-            "  {\"description\": \"Second subtask description\", \"completion_criteria\": \"How to tell it's done\"}\n"
+            "  {\"description\": \"First subtask description\", \"completion_criteria\": \"How to tell it's done\"}\n"
             "]\n"
             "```\n"
         )

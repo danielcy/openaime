@@ -51,3 +51,11 @@ env/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# omc && claude
+.omc/
+.claude/
+.ruff_cache/
+
+# Demos
+.demo/

@@ -2,8 +2,9 @@
 Progress Module - Manages overall progress of agentic workflows using ProgressList.
 """
 import logging
-from typing import Optional, Callable, List
+from typing import Optional, Callable, List, Any
 from aime.base.types import ProgressList, Task, TaskStatus, TaskUpdate, ArtifactReference
+from aime.base.events import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +15,20 @@ class ProgressModule:
     by integrating with and delegating to ProgressList.
     """
 
-    def __init__(self, progress_list: Optional[ProgressList] = None):
+    def __init__(
+        self,
+        progress_list: Optional[ProgressList] = None,
+        emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
+    ):
         """
         Initialize ProgressModule with a ProgressList instance.
 
         Args:
             progress_list: Optional ProgressList instance. If None, creates a new one.
+            emit_event: Optional callback to emit events (used for real-time streaming).
         """
         self._progress_list = progress_list or ProgressList()
+        self._emit_event = emit_event
 
     @property
     def progress_list(self) -> ProgressList:
@@ -72,11 +79,27 @@ class ProgressModule:
             Updated Task instance if found, None otherwise
         """
         logger.debug(f"Updating task {task_id} status to {status.value}: {message or 'No message'}")
+
+        # Get old status before updating
+        old_task = await self._progress_list.get_task(task_id)
+        old_status = old_task.status if old_task else None
+
         task = await self._progress_list.update_status(
             task_id=task_id, status=status, message=message
         )
+
         if task:
             logger.info(f"Task {task_id} status updated to {status.value}")
+
+            # Emit event if callback is available
+            if self._emit_event is not None and old_status != status:
+                self._emit_event(EventType.TASK_STATUS_CHANGED, {
+                    "task_id": task_id,
+                    "old_status": old_status,
+                    "new_status": status,
+                    "message": message or "",
+                })
+
         return task
 
     async def update_status(

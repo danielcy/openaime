@@ -12,7 +12,7 @@ class TestStatusBar:
     def test_status_bar_initialization(self):
         """Test that StatusBar initializes correctly."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         assert status_bar is not None
         assert hasattr(status_bar, "update_state")
@@ -24,7 +24,7 @@ class TestStatusBar:
     def test_initial_state_values(self):
         """Test initial state values."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         # Initial state should be idle
         assert status_bar._state == "idle"
@@ -36,7 +36,7 @@ class TestStatusBar:
     def test_update_state(self):
         """Test updating state."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         # Test running state
         status_bar.update_state("running")
@@ -53,7 +53,7 @@ class TestStatusBar:
     def test_update_iteration(self):
         """Test updating iteration count."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         # Test incrementing iteration count
         status_bar.update_iteration(5)
@@ -65,7 +65,7 @@ class TestStatusBar:
     def test_update_elapsed_time(self):
         """Test updating elapsed time."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         # Test with 1 minute 30 seconds
         status_bar.update_elapsed_time(timedelta(seconds=90))
@@ -78,7 +78,7 @@ class TestStatusBar:
     def test_format_elapsed_time(self):
         """Test that elapsed time is formatted correctly."""
         config = TUIConfig()
-        status_bar = StatusBar(config)
+        status_bar = StatusBar(config, "/test/workspace")
 
         # Test 0 seconds
         status_bar.update_elapsed_time(timedelta(seconds=0))

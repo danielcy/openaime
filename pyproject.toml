@@ -37,3 +37,4 @@ addopts = "-v"
 
 [project.scripts]
 aime-tui = "aime_tui.main:main"
+openaime = "aime_tui.main:main"

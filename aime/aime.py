@@ -17,21 +17,27 @@ Features:
 - Proper initialization and shutdown
 - Simple high-level interface
 - Extensible through configuration and components
+- Colored logging with different colors per log level
+- Configurable debug mode for verbose output
+- Real-time event streaming via optional callback
 """
 import asyncio
 import logging
 import os
-from typing import Optional
+import inspect
+from typing import Optional, Any, Literal
 
+from aime.utils.logging import configure_logging
 from aime.base.config import AimeConfig
 from aime.base.llm import BaseLLM
 from aime.base.tool import Toolkit, ToolBundle
 from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
+from aime.base.events import EventType, AimeEvent, EventCallback
 from aime.components.planner import Planner
 from aime.components.actor_factory import ActorFactory
 from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
-from aime.base.types import PlannerOutput, Task
+from aime.base.types import PlannerOutput, Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +53,12 @@ class OpenAime:
     Attributes:
         config: Configuration for the OpenAime instance
         llm: The LLM to use for planning and decision-making
+        debug: Whether debug logging is enabled
         toolkit: Toolkit containing available tools
         tool_bundles: List of tool bundles for ActorFactory
         knowledge: Knowledge base for information retrieval
         planner: Planner component for task planning
-        progress: ProgressModule for tracking task status
+        progress: Progress module for tracking task status
         actor_factory: ActorFactory for creating dynamic actors
         _running: Flag indicating if the agent is running
         _lock: Lock for thread-safe operations
@@ -62,9 +69,12 @@ class OpenAime:
         config: AimeConfig,
         llm: BaseLLM,
         workspace: str,
+        log_level: None | Literal["verbose", "debug"] = "verbose",
+        debug: Optional[bool] = None,  # Backward compatibility
         toolkit: Optional[Toolkit] = None,
-        tool_bundles: Optional[list[ToolBundle]] = None,
+       tool_bundles: Optional[list[ToolBundle]] = None,
         knowledge: Optional[BaseKnowledge] = None,
+        event_callback: Optional[EventCallback] = None,
     ):
         """
         Initialize the OpenAime instance.
@@ -73,26 +83,42 @@ class OpenAime:
             config: Configuration from aime.base.config
             llm: The LLM to use for planning and decision-making
             workspace: The directory where OpenAime will work. Must exist.
+            log_level: Logging verbosity:
+                - None: completely silent, no logging output at all
+                - "verbose": print info/warning/error messages (default)
+                - "debug": enable debug logging for AIME package
+            debug: Deprecated. Use log_level instead. True maps to "debug", False maps to "verbose".
             toolkit: Optional Toolkit containing available tools. If None, an
                 empty toolkit will be used.
             tool_bundles: Optional list of pre-organized tool bundles by capability.
                 These are used by ActorFactory to select appropriate tools for each task.
             knowledge: Optional Knowledge base for information retrieval. If
                 None, a SimpleInMemoryKnowledge instance will be used.
+            event_callback: Optional callback function that receives real-time
+                events as execution progresses. Can be sync or async.
 
         Raises:
             ValueError: If workspace directory does not exist
         """
+        # Handle backward compatibility for deprecated debug parameter
+        if debug is not None:
+            log_level = "debug" if debug else "verbose"
+
         self.config = config
         self.llm = llm
+        self.log_level = log_level
         self.toolkit = toolkit or Toolkit()
         self.tool_bundles = tool_bundles or []
         self.knowledge = knowledge or SimpleInMemoryKnowledge()
+        self.event_callback = event_callback
         self.planner: Optional[Planner] = None
         self.progress: Optional[ProgressModule] = None
         self.actor_factory: Optional[ActorFactory] = None
         self._running = False
         self._lock = asyncio.Lock()
+
+        # Configure logging
+        configure_logging(log_level)
 
         # Validate and store workspace
         self.workspace = os.path.abspath(workspace)
@@ -100,6 +126,30 @@ class OpenAime:
             raise ValueError(f"Workspace directory does not exist: {self.workspace}")
         if not os.path.isdir(self.workspace):
             raise ValueError(f"Workspace must be a directory: {self.workspace}")
+
+    def _emit_event(self, event_type: EventType, data: dict[str, Any]) -> None:
+        """
+        Emit an event to the registered callback if it exists.
+
+        Handles both synchronous and asynchronous callbacks.
+        For async callbacks, creates a background task to avoid blocking.
+
+        Args:
+            event_type: Type of the event
+            data: Event-specific data
+        """
+        if self.event_callback is None:
+            return
+
+        event = AimeEvent(event_type=event_type, data=data)
+
+        # Check if callback is async
+        if inspect.iscoroutinefunction(self.event_callback):
+            # Create background task - don't block current execution
+            asyncio.create_task(self.event_callback(event))
+        else:
+            # Sync callback - call directly
+            self.event_callback(event)
 
     async def run(self, goal: str) -> str:
         """
@@ -109,11 +159,9 @@ class OpenAime:
         1. Saves original working directory
         2. Changes to workspace directory
         3. Initializes all components
-        4. Starts the actor
-        5. Waits until the planner decides the goal is complete
-        6. Stops the actor and cleans up resources
-        7. Restores original working directory
-        8. Returns the final status
+        4. Waits until the planner decides the goal is complete
+        5. Restores original working directory
+        6. Returns the final status
 
         Args:
             goal: The overall goal to achieve
@@ -146,6 +194,13 @@ class OpenAime:
             logger.debug("Waiting for goal completion")
             final_status = await self._wait_for_goal_completion()
 
+            # Check if goal succeeded or failed
+            success = "completed" in final_status.lower() and "failed" not in final_status.lower()
+            self._emit_event(EventType.EXECUTION_FINISHED, {
+                "success": success,
+                "final_status": final_status,
+            })
+
             logger.info(f"Goal completed: {final_status}")
             return final_status
 
@@ -169,11 +224,16 @@ class OpenAime:
         Args:
             goal: The overall goal to achieve
         """
+        # Emit goal started event
+        self._emit_event(EventType.PLANNER_GOAL_STARTED, {
+            "goal": goal,
+        })
+
         # Create progress module
-        self.progress = ProgressModule()
+        self.progress = ProgressModule(emit_event=self._emit_event)
 
         # Create planner
-        self.planner = Planner(self.llm, self.config.planner)
+        self.planner = Planner(self.llm, self.config.planner, emit_event=self._emit_event)
         await self.planner.initialize(goal, self.progress)
 
         # Create actor factory
@@ -255,6 +315,7 @@ class OpenAime:
                     planner=self.planner,
                     progress=self.progress,
                     knowledge=self.knowledge,
+                    emit_event=self._emit_event,
                 )
 
                 # Run the actor to completion

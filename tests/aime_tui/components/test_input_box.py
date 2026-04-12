@@ -14,7 +14,7 @@ class TestInputBox:
         input_box = InputBox(config)
 
         assert input_box is not None
-        assert hasattr(input_box, "on_submit")
+        assert hasattr(input_box, "on_input_submitted")
 
     def test_input_box_with_submit_callback(self):
         """Test that InputBox accepts and stores a submit callback."""

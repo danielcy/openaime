@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional, AsyncIterator
+from typing import Any, Optional, AsyncIterator, List
 
 
 @dataclass
@@ -42,8 +42,15 @@ class BaseLLM(ABC):
         self,
         messages: list[Message],
         temperature: Optional[float] = None,
+        tools: Optional[List[dict[str, Any]]] = None,
     ) -> LLMResponse:
-        """Complete a non-streaming request."""
+        """Complete a non-streaming request.
+
+        Args:
+            messages: List of conversation messages
+            temperature: Sampling temperature
+            tools: Optional list of tool definitions for native tool calling
+        """
         pass
 
     @abstractmethod

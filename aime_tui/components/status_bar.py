@@ -15,19 +15,22 @@ class StatusBar(Static):
     - Current state (idle/running/finished)
     - Iteration count
     - Elapsed time since execution started
+    - Workspace path
 
     Inherits from Textual's Static widget.
     """
 
-    def __init__(self, config: TUIConfig, **kwargs: Any) -> None:
+    def __init__(self, config: TUIConfig, workspace: str, **kwargs: Any) -> None:
         """Initialize the StatusBar.
 
         Args:
             config: TUI configuration object.
+            workspace: Current workspace absolute path.
             **kwargs: Additional keyword arguments passed to Static.
         """
         super().__init__(**kwargs)
         self._config = config
+        self._workspace = workspace
         self._state = "idle"
         self._iteration = 0
         self._elapsed_time = timedelta(seconds=0)
@@ -79,6 +82,10 @@ class StatusBar(Static):
         # Elapsed time
         time_str = self._format_elapsed_time()
         parts.append(Text(f"Elapsed: {time_str}"))
+        parts.append(Text(" | "))
+
+        # Workspace path (rightmost)
+        parts.append(Text(f"Workspace: {self._workspace}", style="dim"))
 
         # Try to update the widget, but handle case where no app is active (testing)
         try:

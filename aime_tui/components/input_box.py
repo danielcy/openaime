@@ -35,11 +35,11 @@ class InputBox(Input):
         self._config = config
         self._on_submit = on_submit
 
-    async def on_submit(self, event) -> None:
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle input submission when Enter key is pressed.
 
         Args:
-            event: Textual's Input.Changed event.
+            event: Textual's Input.Submitted event.
         """
         value = event.value.strip()
         if value and self._on_submit:

@@ -14,7 +14,7 @@ import re
 import json
 import platform
 from datetime import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any, Callable
 
 from aime.base.types import Task, TaskStatus, ActorResult, ArtifactReference
 from aime.base.tool import ToolResult
@@ -22,6 +22,7 @@ from aime.base.llm import BaseLLM, Message
 from aime.base.tool import BaseTool, Toolkit
 from aime.base.config import ActorConfig
 from aime.base.knowledge import BaseKnowledge
+from aime.base.events import EventType
 from aime.components.progress_module import ProgressModule
 from aime.components.planner import Planner
 
@@ -49,6 +50,7 @@ class DynamicActor:
         toolkit: Toolkit,
         knowledge: BaseKnowledge,
         config: ActorConfig,
+        emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
     ):
         """
         Initialize the DynamicActor for a specific subtask.
@@ -63,6 +65,7 @@ class DynamicActor:
             toolkit: Customized toolkit for this task
             knowledge: Knowledge base for retrieval
             config: Actor configuration
+            emit_event: Optional callback to emit events (used for real-time streaming).
         """
         self.actor_id = actor_id
         self.role = role
@@ -73,6 +76,7 @@ class DynamicActor:
         self.toolkit = toolkit
         self.knowledge = knowledge
         self.config = config
+        self._emit_event = emit_event
 
         self._running = False
         self._lock = asyncio.Lock()
@@ -93,6 +97,12 @@ class DynamicActor:
             self._running = True
 
         logger.info(f"Actor {self.actor_id} starting execution for task: {self.task.description}")
+        if self._emit_event is not None:
+            self._emit_event(EventType.ACTOR_STARTED, {
+                "actor_id": self.actor_id,
+                "task_id": self.task.id,
+                "role": self.role,
+            })
         await self.progress.update_task_status(
             self.task.id, TaskStatus.IN_PROGRESS, f"Actor {self.actor_id} started execution"
         )
@@ -108,6 +118,13 @@ class DynamicActor:
                     await self.progress.update_task_status(
                         self.task.id, TaskStatus.COMPLETED, result.summary
                     )
+                    if self._emit_event is not None:
+                        self._emit_event(EventType.ACTOR_FINISHED, {
+                            "actor_id": self.actor_id,
+                            "task_id": self.task.id,
+                            "status": result.status,
+                            "summary": result.summary,
+                        })
                     async with self._lock:
                         self._running = False
                     return result
@@ -116,6 +133,13 @@ class DynamicActor:
                     await self.progress.update_task_status(
                         self.task.id, TaskStatus.FAILED, result.summary
                     )
+                    if self._emit_event is not None:
+                        self._emit_event(EventType.ACTOR_FINISHED, {
+                            "actor_id": self.actor_id,
+                            "task_id": self.task.id,
+                            "status": result.status,
+                            "summary": result.summary,
+                        })
                     retry_count += 1
                     if retry_count <= max_retries:
                         logger.debug(f"Actor {self.actor_id} retrying (attempt {retry_count}/{max_retries})")
@@ -138,6 +162,13 @@ class DynamicActor:
         await self.progress.update_task_status(
             self.task.id, TaskStatus.FAILED, error_msg
         )
+        if self._emit_event is not None:
+            self._emit_event(EventType.ACTOR_FINISHED, {
+                "actor_id": self.actor_id,
+                "task_id": self.task.id,
+                "status": TaskStatus.FAILED,
+                "summary": error_msg,
+            })
         async with self._lock:
             self._running = False
         return ActorResult(
@@ -157,6 +188,10 @@ class DynamicActor:
         """
         Run the ReAct loop: thought → action → observation → repeat.
 
+        Supports both native tool calling and text-based ReAct parsing:
+        - If LLM returns native tool calls, uses them directly (more reliable)
+        - Falls back to text parsing if no native tool calls available
+
         Returns:
             ActorResult with final result
         """
@@ -169,6 +204,38 @@ class DynamicActor:
                 content=await self._build_system_prompt()
             )
         ]
+
+        # Convert toolkit tools to standard tool definitions for native tool calling
+        # OpenAI format: [{ "type": "function", "function": { "name": ..., "description": ..., "parameters": ... } }]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.get_input_schema(),
+                }
+            }
+            for tool in self.toolkit.get_all_tools()
+        ]
+        # Add the finish tool
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "finish",
+                "description": "Finish the current task when it's completed. Use this when you've achieved the subtask goal.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "string",
+                            "description": "Summary of what you accomplished"
+                        }
+                    },
+                    "required": ["summary"]
+                }
+            }
+        })
 
         iteration = 0
         max_iterations = self.config.max_iterations
@@ -184,30 +251,89 @@ class DynamicActor:
 
             logger.debug(f"Actor {self.actor_id} ReAct iteration {iteration + 1}/{max_iterations}")
 
-            # Get LLM prediction
+            # Get LLM prediction with tool definitions
             response = await self.llm.complete(
-                self._history, temperature=self.config.temperature
+                self._history, temperature=self.config.temperature, tools=tools
             )
 
-            # Parse the response to get thought, action, and parameters
-            parsed = self._parse_response(response.content or "")
-            if not parsed:
-                # Invalid response
-                self._history.append(Message(
-                    role="assistant",
-                    content=response.content or ""
-                ))
+            # Check for native tool calls first (more reliable)
+            thought: Optional[str] = response.content
+            tool_name: Optional[str] = None
+            parameters: dict[str, Any] = {}
+
+            if response.tool_calls:
+                # Use native tool call - take first one (we do one step at a time)
+                tool_call = response.tool_calls[0]
+                tool_name = tool_call.name
+                parameters = tool_call.parameters
+                logger.debug(f"Actor {self.actor_id} native tool call selected tool: {tool_name}")
+                if thought and self._emit_event is not None:
+                    self._emit_event(EventType.ACTOR_THOUGHT, {
+                        "actor_id": self.actor_id,
+                        "thought": thought,
+                    })
+            elif response.content:
+                # No native tool calls - fall back to text parsing
+                parsed = self._parse_response(response.content)
+                if not parsed:
+                    # Invalid response
+                    self._history.append(Message(
+                        role="assistant",
+                        content=response.content or ""
+                    ))
+                    self._history.append(Message(
+                        role="system",
+                        content="Invalid response format. Please use the format: THOUGHT: <your reasoning> ACTION: {\"tool\": \"tool_name\", \"parameters\": {...}}"
+                    ))
+                    iteration += 1
+                    continue
+
+                parsed_thought, parsed_tool_name, parsed_parameters = parsed
+                if thought is None:
+                    thought = parsed_thought
+                tool_name = parsed_tool_name
+                parameters = parsed_parameters
+                logger.debug(f"Actor {self.actor_id} thought: {thought[:100]}{'...' if len(thought) > 100 else ''}")
+                if thought and self._emit_event is not None:
+                    self._emit_event(EventType.ACTOR_THOUGHT, {
+                        "actor_id": self.actor_id,
+                        "thought": thought,
+                    })
+                if tool_name:
+                    logger.debug(f"Actor {self.actor_id} text parsed selected tool: {tool_name}")
+            else:
+                # No content and no tool calls - invalid
                 self._history.append(Message(
                     role="system",
-                    content="Invalid response format. Please use the format: THOUGHT: <your reasoning> ACTION: {\"tool\": \"tool_name\", \"parameters\": {...}}"
+                    content="Empty response from model, please try again with a valid response containing either thought/action or tool call."
                 ))
                 iteration += 1
                 continue
 
-            thought, tool_name, parameters = parsed
-            logger.info(f"Actor {self.actor_id} thought: {thought[:100]}{'...' if len(thought) > 100 else ''}")
-            if tool_name:
-                logger.info(f"Actor {self.actor_id} selected tool: {tool_name}")
+            # Check if we're done
+            if tool_name == "finish":
+                # Finish the task with the current result
+                summary = thought or "Task completed"
+                if isinstance(parameters.get("summary"), str):
+                    summary = parameters["summary"]
+                artifacts = self.task.artifacts
+                logger.info(f"Actor {self.actor_id} finishing task: {summary}")
+                return ActorResult(
+                    task_id=self.task.id,
+                    status=TaskStatus.COMPLETED,
+                    summary=summary,
+                    artifacts=artifacts,
+                )
+
+            # Execute the tool
+            if not tool_name:
+                # No tool selected, continue conversation
+                self._history.append(Message(
+                    role="assistant",
+                    content=response.content or ""
+                ))
+                iteration += 1
+                continue
 
             # Check if we're done
             if tool_name == "finish":
@@ -249,14 +375,27 @@ class DynamicActor:
 
             # Execute the tool
             logger.debug(f"Actor {self.actor_id} executing tool {tool_name} with parameters: {parameters}")
+            if self._emit_event is not None:
+                self._emit_event(EventType.ACTOR_TOOL_CALLED, {
+                    "actor_id": self.actor_id,
+                    "tool_name": tool_name,
+                    "parameters": parameters,
+                })
             tool_result = await tool.execute(parameters)
 
             if tool_result.success:
                 observation = tool_result.content
                 logger.debug(f"Actor {self.actor_id} tool succeeded: {observation[:100]}{'...' if len(observation) > 100 else ''}")
             else:
-                observation = f"Tool execution failed: {tool_result.content}"
+                observation = f"Tool execution failed: {tool_result.content}\nTool: {tool_name}\nParameters: {parameters}"
                 logger.warning(f"Actor {self.actor_id} {observation}")
+            if self._emit_event is not None:
+                self._emit_event(EventType.ACTOR_TOOL_FINISHED, {
+                    "actor_id": self.actor_id,
+                    "tool_name": tool_name,
+                    "success": tool_result.success,
+                    "content": tool_result.content,
+                })
 
             # Add to conversation history
             self._history.append(Message(
@@ -325,6 +464,8 @@ Important Guidance:
 - If the work for your task has already been partially or fully completed by other actors, build on top of the existing work instead of repeating it
 - Check the artifacts created by previous tasks before starting your work
 - Do not re-do what is already done
+- You are already in the workspace directory. Use relative paths directly (e.g., README.md, src/main.py).
+- Do NOT prepend /workspace to paths and do NOT add cd /workspace to shell commands - the working directory is already set correctly.
 """
 
         return (
@@ -346,7 +487,7 @@ Important Guidance:
             "ACTION: <json action>\n\n"
             "Example:\n"
             "THOUGHT: I need to read the README file to understand the project structure.\n"
-            "ACTION: {\"tool\": \"read\", \"parameters\": {\"file_path\": \"README.md\"}}\n"
+            "ACTION: {\"tool\": \"file_read\", \"parameters\": {\"file_path\": \"README.md\"}}\n"
         )
 
     def _parse_response(self, response: str) -> Optional[Tuple[str, Optional[str], dict]]:
