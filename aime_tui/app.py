@@ -339,9 +339,12 @@ class AimeTUI(App):
             return
 
         # Replay all events to rebuild the UI
+        # Skip USER_QUESTION_ASKED when replaying - question was already answered in original session
         from aime.base.events import AimeEvent, EventType
         for event_dict in session_info.events:
             event_type = EventType(event_dict["event_type"])
+            if event_type == EventType.USER_QUESTION_ASKED:
+                continue
             data = event_dict["data"]
             event = AimeEvent(event_type=event_type, data=data)
             self.handle_event(event)
