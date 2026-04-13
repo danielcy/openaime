@@ -101,6 +101,7 @@ class ChatMessage:
     role: Literal["user", "assistant"]
     content: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    tools: Optional[List[dict]] = None  # Optional: tool call results for persistence
 
 
 class ProgressList:
