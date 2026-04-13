@@ -200,6 +200,14 @@ class OpenAime:
             }
             self.session_manager.append_event(self._current_session_id, event_dict)
 
+            # Also update actor registry - after actor creation events we need to save the latest registry
+            if self.actor_factory is not None:
+                actor_registry = self.actor_factory.get_actor_registry()
+                self.session_manager.update_metadata(
+                    self._current_session_id,
+                    actor_registry=actor_registry
+                )
+
     async def run(self, goal: str) -> str:
         """
         Run the autonomous agent to achieve a specific goal.
@@ -539,7 +547,26 @@ class OpenAime:
 
         # Load actor registry if available
         session_info = self.session_manager.get_session_info(session_id)
-        if session_info and session_info.actor_registry is not None and self.actor_factory is not None:
+        if session_info and session_info.actor_registry is not None:
+            # Create actor factory if it doesn't exist yet (may happen when loading session before first run)
+            if self.actor_factory is None:
+                self.actor_factory = ActorFactory(
+                    base_llm=self.llm,
+                    actor_config=self.config.actor,
+                    tool_bundles=self.tool_bundles,
+                    skill_registry=self.skill_registry,
+                    store_full_actor_history=self.store_full_actor_history,
+                )
+                # Register all individual tools from toolkit as a default bundle if needed
+                if self.toolkit.get_all_tools() and not self.tool_bundles:
+                    from aime.base.tool import ToolBundle
+                    default_bundle = ToolBundle(
+                        name="default",
+                        description="Default tools including all builtin tools",
+                        tools=self.toolkit.get_all_tools(),
+                    )
+                    self.actor_factory.register_tool_bundle(default_bundle)
+            # Now load the actor registry from the saved session
             self.actor_factory.load_actor_registry(session_info.actor_registry)
 
     async def _generate_execution_summary(self) -> str:
