@@ -7,13 +7,16 @@ controlling OpenAime execution. Features include:
 - Progress pane displaying task hierarchy and status
 - Status bar with execution metrics
 - Input box for user interaction
+- Log viewer for collected logs when debugging
 """
 
+import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Footer
+from textual.screen import Screen
+from textual.widgets import Header, Footer, Static, TextArea
 
 from aime_tui.config import TUIConfig
 from aime_tui.theme import get_theme
@@ -24,6 +27,35 @@ from aime.base.types import Task, ActorRecord
 from aime.base.session import SessionInfo
 from aime.base.session_manager import get_default_session_manager
 from aime_tui.components.session_list_dialog import SessionListDialog
+
+
+class LogViewerScreen(Screen):
+    """Modal screen for viewing collected logs."""
+
+    BINDINGS = [
+        ("escape", "dismiss", "Dismiss"),
+    ]
+
+    def __init__(self, logs: list[str], *args, **kwargs):
+        """Initialize the log viewer screen.
+
+        Args:
+            logs: List of formatted log lines to display
+            *args: Passed to Screen
+            **kwargs: Passed to Screen
+        """
+        super().__init__(*args, **kwargs)
+        self._logs = logs
+
+    def compose(self) -> ComposeResult:
+        """Compose the log viewer with a scrollable text area."""
+        from textual.widgets import Static
+        from textual.containers import Vertical
+
+        logs_text = "\n".join(self._logs)
+        with Vertical(id="log_viewer"):
+            yield Static("Logs (press Esc to close)", classes="log_viewer_header")
+            yield TextArea(logs_text, read_only=True)
 
 
 class AimeTUI(App):
@@ -79,6 +111,31 @@ class AimeTUI(App):
         self._execution_start_time: Optional[datetime] = None
         self._current_iteration: int = 0
         self._is_running: bool = False
+
+        # Log collection for in-app viewing (prevents messing up TUI layout)
+        self._logs: List[str] = []
+
+        # Add memory logging handler to collect logs without outputting to terminal
+        # This prevents log output from messing up the TUI layout
+        # Capture reference to AimeTUI's self._logs in closure
+        outer_self = self
+        class TextualMemoryHandler(logging.Handler):
+            def emit(self, record):
+                formatted = self.format(record)
+                outer_self._logs.append(formatted)
+
+        # Create and add the handler
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        memory_handler = TextualMemoryHandler()
+        memory_handler.setFormatter(formatter)
+        root_logger = logging.getLogger()
+
+        # Remove any existing StreamHandlers to prevent terminal output
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, logging.StreamHandler):
+                root_logger.removeHandler(handler)
+
+        root_logger.addHandler(memory_handler)
 
         # Register event callback with OpenAime
         self._openaime.event_callback = self.handle_event
@@ -239,6 +296,9 @@ class AimeTUI(App):
         elif command in ["/resume", "/sessions"]:
             self._show_session_list_dialog()
             return
+        elif command == "/logs":
+            self._show_log_viewer()
+            return
         elif command in ["pause", "stop"]:
             # TODO: Implement pause functionality
             pass
@@ -320,6 +380,15 @@ class AimeTUI(App):
 
         dialog = SessionListDialog(on_session_selected)
         self.push_screen(dialog)
+
+    def _show_log_viewer(self) -> None:
+        """Show the log viewer dialog to display collected logs."""
+        if not self._logs:
+            self.notify("No logs collected")
+            return
+
+        viewer = LogViewerScreen(self._logs)
+        self.push_screen(viewer)
 
     def _load_session(self, session_id: str) -> None:
         """Load a saved session and replay all events to rebuild the UI.

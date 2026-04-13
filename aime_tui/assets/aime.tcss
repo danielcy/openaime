@@ -333,3 +333,31 @@ AskQuestionDialog.inactive {
   display: none;
 }
 
+/* Log Viewer Screen */
+LogViewerScreen {
+  align: center middle;
+}
+
+#log_viewer {
+  width: 90%;
+  height: 80%;
+  background: $panel;
+  border: thick $primary;
+}
+
+.log_viewer_header {
+  width: 100%;
+  height: 3;
+  background: $primary;
+  color: $text;
+  padding: 0 1;
+  text-style: bold;
+}
+
+#log_viewer TextArea {
+  height: 1fr;
+  width: 100%;
+  background: $background;
+  border: none;
+}
+
