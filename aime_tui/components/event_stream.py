@@ -164,6 +164,7 @@ class EventStream(RichLog):
             EventType.TASK_STATUS_CHANGED: "📊",
             # Overall execution
             EventType.EXECUTION_FINISHED: "✅",
+            EventType.GOAL_SUMMARY_GENERATED: "📝",
             # User interaction events
             EventType.USER_QUESTION_ASKED: "❓",
             EventType.USER_QUESTION_ANSWERED: "💬",

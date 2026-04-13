@@ -310,10 +310,16 @@ class OpenAime:
             self._emit_event(EventType.EXECUTION_FINISHED, {
                 "success": success,
                 "final_status": final_status,
+                "summary": summary,
             })
 
-            logger.info(f"Goal completed: {final_status}")
-            return final_status
+            # Emit the generated summary as a separate event for clear display in TUI
+            self._emit_event(EventType.GOAL_SUMMARY_GENERATED, {
+                "summary": summary,
+            })
+
+            logger.info(f"Goal completed: {final_status}\nSummary: {summary}")
+            return summary
 
         finally:
             # Restore original working directory

@@ -40,6 +40,7 @@ class EventType(str, Enum):
 
     # Overall execution
     EXECUTION_FINISHED = "execution_finished"
+    GOAL_SUMMARY_GENERATED = "goal_summary_generated"
 
     # User interaction events
     USER_QUESTION_ASKED = "user_question_asked"
