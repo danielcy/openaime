@@ -80,15 +80,13 @@ class AskQuestionDialog(Screen):
 
     def _compose_single_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose single choice question UI."""
-        radio_set = RadioSet(id=f"question-options-{q_idx}")
-        with radio_set:
+        with RadioSet(id=f"question-options-{q_idx}"):
             for opt_idx, option in enumerate(question["options"]):
                 yield RadioButton(
                     option["label"],
                     value=str(opt_idx),
                     id=f"radio-{q_idx}-{opt_idx}"
                 )
-        yield radio_set
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
@@ -98,15 +96,13 @@ class AskQuestionDialog(Screen):
 
     def _compose_multiple_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose multiple choice question UI."""
-        container = Container(id=f"question-options-{q_idx}")
-        with container:
+        with Container(id=f"question-options-{q_idx}"):
             for opt_idx, option in enumerate(question["options"]):
                 yield Checkbox(
                     option["label"],
                     value=str(opt_idx),
                     id=f"checkbox-{q_idx}-{opt_idx}"
                 )
-        yield container
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
