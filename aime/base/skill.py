@@ -205,7 +205,7 @@ class SkillRegistry:
         self._loaded_cache[name] = skill
         return skill
 
-    def match(self, llm: BaseLLM, task_description: str, top_k: int = 3) -> List[Skill]:
+    async def match(self, llm: BaseLLM, task_description: str, top_k: int = 3) -> List[Skill]:
         """Match skills to task description using LLM.
 
         Args:
@@ -245,7 +245,7 @@ Example Output:
 ["python-code-review", "git-commit-guide"]
 """
         messages = [Message(role="user", content=prompt)]
-        response = llm.complete(messages, temperature=0.0)
+        response = await llm.complete(messages, temperature=0.0)
         if response is None or not response.content:
             content = "[]"
         else:

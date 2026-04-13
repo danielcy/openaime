@@ -203,7 +203,7 @@ If no existing actor is suitable (need to create new), output null.
             logger.info(f"ActorFactory reusing existing actor: {existing_actor.actor_id}")
             # Re-match skills for the new task
             if self._skill_registry is not None:
-                matched_skills = self._skill_registry.match(
+                matched_skills = await self._skill_registry.match(
                     llm=self.base_llm,
                     task_description=task.description,
                     top_k=3,
@@ -225,7 +225,7 @@ If no existing actor is suitable (need to create new), output null.
         # Match skills for this task (if skill registry available)
         matched_skills: list[Skill] = []
         if self._skill_registry is not None:
-            matched_skills = self._skill_registry.match(
+            matched_skills = await self._skill_registry.match(
                 llm=self.base_llm,
                 task_description=task.description,
                 top_k=3,
