@@ -204,9 +204,7 @@ class DynamicActor:
         """
         Run the ReAct loop: thought → action → observation → repeat.
 
-        Supports both native tool calling and text-based ReAct parsing:
-        - If LLM returns native tool calls, uses them directly (more reliable)
-        - Falls back to text parsing if no native tool calls available
+        Uses only native tool calling (most reliable).
 
         Returns:
             ActorResult with final result
@@ -255,6 +253,8 @@ class DynamicActor:
 
         iteration = 0
         max_iterations = self.config.max_iterations
+        empty_retries = 0
+        max_empty_retries = 3
 
         # Track recent tool calls for repetition detection
         recent_tools: list[str] = []
@@ -276,7 +276,7 @@ class DynamicActor:
                 self._history, temperature=self.config.temperature, tools=tools
             )
 
-            # Check for native tool calls first (more reliable)
+            # Check for native tool calls
             thought: Optional[str] = response.content
             tool_name: Optional[str] = None
             parameters: dict[str, Any] = {}
@@ -300,50 +300,22 @@ class DynamicActor:
                         content=f"THOUGHT: {thought}",
                         message_type="thought"
                     ))
-            elif response.content:
-                # No native tool calls - fall back to text parsing
-                parsed = self._parse_response(response.content)
-                if not parsed:
-                    # Invalid response
-                    self._history.append(Message(
-                        role="assistant",
-                        content=response.content or ""
-                    ))
-                    self._history.append(Message(
-                        role="system",
-                        content="Invalid response format. Please use the format: THOUGHT: <your reasoning> ACTION: {\"tool\": \"tool_name\", \"parameters\": {...}}"
-                    ))
-                    iteration += 1
-                    continue
-
-                parsed_thought, parsed_tool_name, parsed_parameters = parsed
-                if thought is None:
-                    thought = parsed_thought
-                tool_name = parsed_tool_name
-                parameters = parsed_parameters
-                logger.debug(f"Actor {self.actor_id} thought: {thought[:100]}{'...' if len(thought) > 100 else ''}")
-                if thought and self._emit_event is not None:
-                    self._emit_event(EventType.ACTOR_THOUGHT, {
-                        "actor_id": self.actor_id,
-                        "thought": thought,
-                    })
-                # Add thought to global chat history if enabled
-                if self.store_full_actor_history and thought:
-                    from aime.base.types import ChatMessage
-                    self.planner._chat_history.append(ChatMessage(
-                        role="assistant",
-                        content=f"THOUGHT: {thought}",
-                        message_type="thought"
-                    ))
-                if tool_name:
-                    logger.debug(f"Actor {self.actor_id} text parsed selected tool: {tool_name}")
             else:
-                # No content and no tool calls - invalid
+                # No tool calls - increment empty retries
+                empty_retries += 1
+                logger.warning(f"Actor {self.actor_id} received empty tool calls (retry {empty_retries}/{max_empty_retries})")
+
+                if empty_retries > max_empty_retries:
+                    return ActorResult(
+                        task_id=self.task.id,
+                        status=TaskStatus.FAILED,
+                        summary="Received too many empty tool calls without any action"
+                    )
+
                 self._history.append(Message(
                     role="system",
-                    content="Empty response from model, please try again with a valid response containing either thought/action or tool call."
+                    content="Your response didn't include any tool calls. Please try again and use the appropriate tool to continue working on the task."
                 ))
-                iteration += 1
                 continue
 
             # Check if we're done
@@ -360,39 +332,6 @@ class DynamicActor:
                     summary=summary,
                     artifacts=artifacts,
                 )
-
-            # Execute the tool
-            if not tool_name:
-                # No tool selected, continue conversation
-                self._history.append(Message(
-                    role="assistant",
-                    content=response.content or ""
-                ))
-                iteration += 1
-                continue
-
-            # Check if we're done
-            if tool_name == "finish":
-                # Finish the task with the current result
-                summary = thought or "Task completed"
-                artifacts = self.task.artifacts
-                logger.info(f"Actor {self.actor_id} finishing task: {summary}")
-                return ActorResult(
-                    task_id=self.task.id,
-                    status=TaskStatus.COMPLETED,
-                    summary=summary,
-                    artifacts=artifacts,
-                )
-
-            # Execute the tool
-            if not tool_name:
-                # No tool selected, continue conversation
-                self._history.append(Message(
-                    role="assistant",
-                    content=response.content or ""
-                ))
-                iteration += 1
-                continue
 
             tool = self.toolkit.get_tool_by_name(tool_name)
             if not tool:
@@ -509,25 +448,13 @@ IMPORTANT OBSERVATION: You appear to be stuck in a loop repeatedly checking the 
         - Role (from task specialization)
         - Task description and completion criteria
         - Global progress (all tasks with status) to avoid repeating work
-        - Available tools
-        - ReAct instructions
+        - Environment info
+        - Simplified native function calling instructions
+        - Activated skills
 
         Returns:
             Formatted system prompt string
         """
-        tools = self.toolkit.get_all_tools()
-        tools_description = "\n".join([
-            f"Tool: {tool.name}\nDescription: {tool.description}\nInput Schema: {tool.get_input_schema()}\n"
-            for tool in tools
-        ])
-
-        # Add special finish tool
-        tools_description += """
-Special Tool: finish
-Description: Finish the current task when it's completed. Use this when you've achieved the subtask goal.
-Input Schema: {"type": "object", "properties": {"summary": {"type": "string", "description": "**COMPREHENSIVE SUMMARY** of what you accomplished: include the actual results, key findings, content created, conclusions, and any important details. This summary will be used by subsequent tasks to build on your work - BE SPECIFIC."}}}
-"""
-
         # Add environment context (ε from paper)
         env_info = f"""Environment Context:
 OS: {platform.system()} {platform.release()}
@@ -610,97 +537,20 @@ Important Guidance:
             f"Completion Criteria: {self.task.completion_criteria}\n\n"
             f"{env_info}\n"
             f"{progress_info}\n"
-            "Available Tools:\n"
-            f"{tools_description}\n\n"
-            "ReAct Instructions:\n"
-            "You run in a loop of THOUGHT, ACTION, OBSERVATION.\n\n"
-            "THOUGHT: Your reasoning about what to do next. Explain your thinking step by step.\n"
-            "ACTION: The action to take, in JSON format with 'tool' and 'parameters'.\n"
-            "  - To finish the task, use: {\"tool\": \"finish\", \"parameters\": {\"summary\": \"your summary here\"}}\n"
-            "  - To use a tool, use: {\"tool\": \"tool_name\", \"parameters\": {\"key\": \"value\"}}\n\n"
-            "Output Format:\n"
-            "THOUGHT: <your reasoning>\n"
-            "ACTION: <json action>\n\n"
-            "Example:\n"
-            "THOUGHT: I need to read the README file to understand the project structure.\n"
-            "ACTION: {\"tool\": \"file_read\", \"parameters\": {\"file_path\": \"README.md\"}}\n"
+            "Instructions:\n"
+            "You work in an iterative loop:\n"
+            "1. Explain your reasoning about what to do next in the response content\n"
+            "2. Call the appropriate tool using the native tool calling interface\n"
+            "3. You will receive the tool execution result back as an observation\n"
+            "4. Repeat until you have completed the task\n\n"
+            "When you finish, call the `finish` tool with a comprehensive summary that includes:\n"
+            "- Actual results achieved\n"
+            "- Content created or modified\n"
+            "- Key findings and conclusions\n"
+            "- Any important details for downstream tasks\n"
             + skills_section
         )
 
-    def _clean_llm_json(self, json_str: str) -> str:
-        """
-        Clean up common JSON formatting issues in LLM output.
-
-        Handles:
-        - Markdown code blocks (```json ... ```)
-        - Single quotes replaced with double quotes
-        - Trailing commas in objects/arrays
-        - Text after closing brace
-        - Unescaped newlines in strings
-        """
-        # Remove markdown code block markers
-        json_str = re.sub(r'^```\w*\n', '', json_str)
-        json_str = re.sub(r'\n```$', '', json_str)
-
-        # Trim any whitespace
-        json_str = json_str.strip()
-
-        # Replace single quotes with double quotes (but be careful)
-        # This handles the common case where LLM uses single quotes
-        # Only replace single quotes that are at word boundaries
-        json_str = re.sub(r"'([^']+)'", r'"\1"', json_str)
-
-        # Remove trailing commas before closing braces/brackets
-        json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
-
-        # Find the first opening brace and last closing brace
-        # Truncate anything after the last closing brace
-        first_brace = json_str.find('{')
-        last_brace = json_str.rfind('}')
-        if first_brace >= 0 and last_brace >= 0 and last_brace > first_brace:
-            json_str = json_str[first_brace:last_brace + 1]
-
-        return json_str
-
-    def _parse_response(self, response: str) -> Optional[Tuple[str, Optional[str], dict]]:
-        """
-        Parse LLM response to extract thought, tool name, and parameters.
-
-        Expected format:
-        THOUGHT: <reasoning>
-        ACTION: {"tool": "name", "parameters": {...}}
-
-        Returns:
-            Tuple (thought, tool_name, parameters), or None if parsing fails
-        """
-        # Extract thought
-        thought_match = re.search(r'THOUGHT:\s*(.*?)(?=\nACTION:|\Z)', response, re.DOTALL | re.IGNORECASE)
-        if not thought_match:
-            # If no explicit THOUGHT:, take everything before ACTION as thought
-            thought_match = re.search(r'(.*?)(?=\nACTION:|\Z)', response, re.DOTALL | re.IGNORECASE)
-            if not thought_match:
-                return None
-        thought = thought_match.group(1).strip()
-
-        # Extract action JSON
-        action_match = re.search(r'ACTION:\s*(\{.*\})', response, re.DOTALL | re.IGNORECASE)
-        if not action_match:
-            # Try to find JSON without ACTION: prefix
-            action_match = re.search(r'(\{.*\})', response, re.DOTALL)
-            if not action_match:
-                return thought, None, {}
-
-        try:
-            action_json = action_match.group(1)
-            # Clean up common JSON formatting issues from LLM output
-            action_json = self._clean_llm_json(action_json)
-            parsed = json.loads(action_json)
-            tool_name = parsed.get("tool")
-            parameters = parsed.get("parameters", {})
-            return thought, tool_name, parameters
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse action JSON: {action_json[:200]}...")
-            return thought, None, {}
 
     def __repr__(self) -> str:
         """Return string representation."""

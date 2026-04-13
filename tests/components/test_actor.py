@@ -9,33 +9,10 @@ from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
 from aime.components.planner import Planner
 from aime.base.config import ActorConfig
-from aime.base.llm import BaseLLM, Message, LLMResponse
+from aime.base.llm import BaseLLM, Message, LLMResponse, ToolCall
 from aime.base.tool import Toolkit, ToolBundle, BaseTool, ToolResult
 from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
 from aime.base.types import Task, TaskStatus
-
-
-class MockLLM(BaseLLM):
-    """Mock LLM for testing."""
-
-    def __init__(self, response_content: str = '{"tool": "test_tool", "parameters": {"test": "value"}}'):
-        self.response_content = response_content
-
-    async def complete(
-        self,
-        messages: list[Message],
-        temperature: float | None = None,
-        tools: list[dict[str, any]] | None = None,
-    ) -> LLMResponse:
-        return LLMResponse(content=self.response_content)
-
-    async def complete_stream(
-        self,
-        messages: list[Message],
-        temperature: float | None = None,
-        tools: list[dict[str, any]] | None = None,
-    ):
-        yield None
 
 
 class MockTool(BaseTool):
@@ -136,7 +113,10 @@ async def test_actor_basic_execution_flow():
     # Create LLM that responds with finish action
     class FinishMockLLM(BaseLLM):
         async def complete(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None) -> LLMResponse:
-            return LLMResponse(content='THOUGHT: Task is complete\nACTION: {"tool": "finish", "parameters": {"summary": "Done"}}')
+            return LLMResponse(
+                content='THOUGHT: Task is complete',
+                tool_calls=[ToolCall(name="finish", parameters={"summary": "Done"})]
+            )
 
         async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
             yield None
@@ -185,8 +165,15 @@ async def test_actor_with_no_tools():
     # Create mock planner
     mock_planner = MagicMock(spec=Planner)
 
-    # Create mock LLM
-    mock_llm = MockLLM()
+    # Create LLM that returns empty tool calls
+    class EmptyMockLLM(BaseLLM):
+        async def complete(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None) -> LLMResponse:
+            return LLMResponse(content='', tool_calls=[])
+
+        async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
+            yield None
+
+    mock_llm = EmptyMockLLM()
 
     # Create actor and run it
     config = ActorConfig()
@@ -228,7 +215,17 @@ async def test_actor_tool_selection():
     mock_planner = MagicMock(spec=Planner)
 
     # Create mock LLM with specific tool selection response
-    mock_llm = MockLLM('THOUGHT: I need to use the test tool\nACTION: {"tool": "test_tool", "parameters": {"test": "value"}}')
+    class ToolSelectMockLLM(BaseLLM):
+        async def complete(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None) -> LLMResponse:
+            return LLMResponse(
+                content='THOUGHT: I need to use the test tool',
+                tool_calls=[ToolCall(name="test_tool", parameters={"test": "value"})]
+            )
+
+        async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
+            yield None
+
+    mock_llm = ToolSelectMockLLM()
 
     # Create actor and run it
     config = ActorConfig()
@@ -270,7 +267,17 @@ async def test_actor_with_failed_task():
     mock_planner = MagicMock(spec=Planner)
 
     # Create mock LLM
-    mock_llm = MockLLM('THOUGHT: I need to use the test tool\nACTION: {"tool": "test_tool", "parameters": {"test": "value"}}')
+    class FailingToolMockLLM(BaseLLM):
+        async def complete(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None) -> LLMResponse:
+            return LLMResponse(
+                content='THOUGHT: I need to use the test tool',
+                tool_calls=[ToolCall(name="test_tool", parameters={"test": "value"})]
+            )
+
+        async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
+            yield None
+
+    mock_llm = FailingToolMockLLM()
 
     # Create actor and run it with limited retries
     config = ActorConfig(max_retries=1)
