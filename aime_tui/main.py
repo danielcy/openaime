@@ -27,6 +27,7 @@ import os
 import sys
 from typing import Optional, Any
 
+from aime.tools.builtin.bundles import default_tool_bundle
 from aime_tui.app import AimeTUI
 from aime_tui.config import TUIConfig
 from aime.aime import OpenAime
@@ -35,8 +36,6 @@ from aime.providers.llm.volcengine import VolcengineLLM
 from aime.providers.llm.anthropic import AnthropicLLM
 from aime.providers.llm.openai import OpenAILLM
 from aime.base.tool import Toolkit
-from aime.base.tool import ToolBundle
-from aime.tools.builtin import Read, ShellExec, Update, Write, AskUserQuestion
 
 
 def _ensure_default_config() -> None:
@@ -256,17 +255,7 @@ def main() -> None:
 
     toolkit = Toolkit()
     toolkit.add_bundle(
-        ToolBundle(
-            name="Default tools", 
-            description="Default tools, you must use them", 
-            tools=[
-                ShellExec(),
-                Read(),
-                Write(),
-                Update(),
-                AskUserQuestion()
-            ],
-            )
+        default_tool_bundle()
         )
 
     # Create OpenAime instance

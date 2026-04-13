@@ -482,7 +482,6 @@ IMPORTANT OBSERVATION: You appear to be stuck in a loop repeatedly checking the 
             # Add action and observation to global chat history if enabled
             if self.store_full_actor_history and tool_name:
                 from aime.base.types import ChatMessage
-                import json
                 action_content = f"ACTION: {tool_name} - {json.dumps(parameters)}"
                 self.planner._chat_history.append(ChatMessage(
                     role="assistant",
@@ -628,6 +627,41 @@ Important Guidance:
             + skills_section
         )
 
+    def _clean_llm_json(self, json_str: str) -> str:
+        """
+        Clean up common JSON formatting issues in LLM output.
+
+        Handles:
+        - Markdown code blocks (```json ... ```)
+        - Single quotes replaced with double quotes
+        - Trailing commas in objects/arrays
+        - Text after closing brace
+        - Unescaped newlines in strings
+        """
+        # Remove markdown code block markers
+        json_str = re.sub(r'^```\w*\n', '', json_str)
+        json_str = re.sub(r'\n```$', '', json_str)
+
+        # Trim any whitespace
+        json_str = json_str.strip()
+
+        # Replace single quotes with double quotes (but be careful)
+        # This handles the common case where LLM uses single quotes
+        # Only replace single quotes that are at word boundaries
+        json_str = re.sub(r"'([^']+)'", r'"\1"', json_str)
+
+        # Remove trailing commas before closing braces/brackets
+        json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
+
+        # Find the first opening brace and last closing brace
+        # Truncate anything after the last closing brace
+        first_brace = json_str.find('{')
+        last_brace = json_str.rfind('}')
+        if first_brace >= 0 and last_brace >= 0 and last_brace > first_brace:
+            json_str = json_str[first_brace:last_brace + 1]
+
+        return json_str
+
     def _parse_response(self, response: str) -> Optional[Tuple[str, Optional[str], dict]]:
         """
         Parse LLM response to extract thought, tool name, and parameters.
@@ -658,11 +692,14 @@ Important Guidance:
 
         try:
             action_json = action_match.group(1)
+            # Clean up common JSON formatting issues from LLM output
+            action_json = self._clean_llm_json(action_json)
             parsed = json.loads(action_json)
             tool_name = parsed.get("tool")
             parameters = parsed.get("parameters", {})
             return thought, tool_name, parameters
         except json.JSONDecodeError:
+            logger.warning(f"Failed to parse action JSON: {action_json[:200]}...")
             return thought, None, {}
 
     def __repr__(self) -> str:

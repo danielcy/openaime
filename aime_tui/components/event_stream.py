@@ -447,6 +447,10 @@ class EventStream(RichLog):
 
         if thought_line is not None and action_line is not None:
             # Found the expected format - use special emoji formatting
+            if len(thought_line) > 100:
+                thought_line = thought_line[:97] + "..."
+            if len(action_line) > 200:
+                action_line = action_line[:197] + "..."
             return Text.assemble(
                 Text("🤖 ", style="bold secondary"),
                 Text(thought_line + "\n"),
