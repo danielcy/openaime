@@ -55,6 +55,13 @@ class SessionStorage:
                     try:
                         with open(session_info_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
+                            # Deserialize actor_registry if present
+                            if data.get('actor_registry'):
+                                from aime.base.types import ActorRecord
+                                data['actor_registry'] = [
+                                    ActorRecord(**actor_dict)
+                                    for actor_dict in data['actor_registry']
+                                ]
                             sessions.append(SessionInfo(**data))
                     except Exception as e:
                         print(f"Error reading session {item.name}: {e}")
@@ -96,6 +103,13 @@ class SessionStorage:
         try:
             with open(session_info_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+                # Deserialize actor_registry if present
+                if data.get('actor_registry'):
+                    from aime.base.types import ActorRecord
+                    data['actor_registry'] = [
+                        ActorRecord(**actor_dict)
+                        for actor_dict in data['actor_registry']
+                    ]
                 return SessionInfo(**data)
         except Exception as e:
             print(f"Error reading session info {session_id}: {e}")
@@ -113,8 +127,16 @@ class SessionStorage:
         session_info_path = self._get_session_info_path(info.session_id)
 
         try:
+            # Convert to dict and serialize actor_registry properly
+            data = info.__dict__.copy()
+            if data.get('actor_registry'):
+                data['actor_registry'] = [
+                    actor.__dict__
+                    for actor in data['actor_registry']
+                ]
+
             with open(session_info_path, "w", encoding="utf-8") as f:
-                json.dump(info.__dict__, f, indent=2, default=str)
+                json.dump(data, f, indent=2, default=str)
         except Exception as e:
             print(f"Error saving session info {info.session_id}: {e}")
 

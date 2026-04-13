@@ -29,3 +29,5 @@ class AimeConfig:
     actor: ActorConfig = field(default_factory=ActorConfig)
     knowledge: KnowledgeConfig = field(default_factory=KnowledgeConfig)
     max_total_iterations: int = 200
+    auto_save_session: bool = True
+    store_full_actor_history: bool = True

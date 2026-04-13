@@ -439,3 +439,95 @@ async def test_progress_module_delete_task():
     result = await pm.delete_task(task.id)
     assert result is True
     assert await pm.get_task(task.id) is None
+
+
+def test_add_user_message():
+    """Test adding user messages to chat history."""
+    from aime.base.types import ChatMessage
+
+    mock_llm = MockLLM()
+    config = PlannerConfig()
+    planner = Planner(mock_llm, config)
+
+    # Initially empty
+    assert len(planner._chat_history) == 0
+
+    # Add user message
+    planner.add_user_message("Hello")
+
+    # Verify it was added
+    assert len(planner._chat_history) == 1
+    assert planner._chat_history[0].role == "user"
+    assert planner._chat_history[0].content == "Hello"
+
+
+def test_add_assistant_message():
+    """Test adding assistant messages to chat history."""
+    from aime.base.types import ChatMessage
+
+    mock_llm = MockLLM()
+    config = PlannerConfig()
+    planner = Planner(mock_llm, config)
+
+    # Initially empty
+    assert len(planner._chat_history) == 0
+
+    # Add assistant message
+    planner.add_assistant_message("Hi there")
+
+    # Verify it was added
+    assert len(planner._chat_history) == 1
+    assert planner._chat_history[0].role == "assistant"
+    assert planner._chat_history[0].content == "Hi there"
+
+
+def test_load_chat_history():
+    """Test loading chat history from external messages."""
+    from aime.base.types import ChatMessage
+
+    mock_llm = MockLLM()
+    config = PlannerConfig()
+    planner = Planner(mock_llm, config)
+
+    # Add some initial messages
+    planner.add_user_message("Initial user")
+    planner.add_assistant_message("Initial assistant")
+    assert len(planner._chat_history) == 2
+
+    # Create external chat history to load
+    external_messages = [
+        ChatMessage(role="user", content="Loaded user 1"),
+        ChatMessage(role="assistant", content="Loaded assistant 1"),
+        ChatMessage(role="user", content="Loaded user 2"),
+    ]
+
+    # Load the external history
+    planner.load_chat_history(external_messages)
+
+    # Verify it replaced the existing history
+    assert len(planner._chat_history) == 3
+    assert planner._chat_history[0].role == "user"
+    assert planner._chat_history[0].content == "Loaded user 1"
+    assert planner._chat_history[1].role == "assistant"
+    assert planner._chat_history[1].content == "Loaded assistant 1"
+    assert planner._chat_history[2].role == "user"
+    assert planner._chat_history[2].content == "Loaded user 2"
+
+
+def test_load_chat_history_empty():
+    """Test loading empty chat history."""
+    from aime.base.types import ChatMessage
+
+    mock_llm = MockLLM()
+    config = PlannerConfig()
+    planner = Planner(mock_llm, config)
+
+    # Add some initial messages
+    planner.add_user_message("Initial")
+    assert len(planner._chat_history) == 1
+
+    # Load empty history
+    planner.load_chat_history([])
+
+    # Verify it's empty now
+    assert len(planner._chat_history) == 0

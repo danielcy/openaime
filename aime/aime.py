@@ -39,6 +39,8 @@ from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
 from aime.base.types import PlannerOutput, Task, TaskStatus, ChatMessage
 from aime.base.skill import SkillRegistry
+from aime.base.session_manager import SessionManager, get_default_session_manager
+from aime.base.session import SessionInfo
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,11 @@ class OpenAime:
         # New skills parameters
         skills_path: Optional[list[str]] = None,
         auto_discover_skills: bool = True,
+        # Session persistence parameters
+        auto_save_session: Optional[bool] = None,
+        session_id: Optional[str] = None,
+        session_manager: Optional[SessionManager] = None,
+        store_full_actor_history: Optional[bool] = None,
     ):
         """
         Initialize the OpenAime instance.
@@ -121,6 +128,16 @@ class OpenAime:
         self._running = False
         self._lock = asyncio.Lock()
         self._chat_history: list[ChatMessage] = []
+
+        # Session persistence
+        self.auto_save_session = auto_save_session if auto_save_session is not None else self.config.auto_save_session
+        self.store_full_actor_history = store_full_actor_history if store_full_actor_history is not None else self.config.store_full_actor_history
+        self.session_manager = session_manager or get_default_session_manager()
+        self._current_session_id: Optional[str] = session_id
+
+        if session_id is not None:
+            # Load chat history from session if session_id is provided
+            self._chat_history = self.session_manager.load_chat_history(session_id)
 
         # Configure logging
         configure_logging(log_level)
@@ -175,6 +192,14 @@ class OpenAime:
             # Sync callback - call directly
             self.event_callback(event)
 
+        # Save event to session if auto_save_session is enabled and we have a current session
+        if self.auto_save_session and self._current_session_id is not None:
+            event_dict = {
+                "event_type": event_type.value,
+                "data": data,
+            }
+            self.session_manager.append_event(self._current_session_id, event_dict)
+
     async def run(self, goal: str) -> str:
         """
         Run the autonomous agent to achieve a specific goal.
@@ -214,7 +239,34 @@ class OpenAime:
             self.progress.archive_current()
 
         # Always add current goal to chat history - preserve context across goals
-        self._chat_history.append(ChatMessage(role="user", content=goal))
+        user_message = ChatMessage(role="user", content=goal)
+        self._chat_history.append(user_message)
+
+        # Handle session persistence for user message
+        if self.auto_save_session:
+            if self._current_session_id is None:
+                # Create new session if none exists
+                session_info = self.session_manager.get_or_create_current_session()
+                self._current_session_id = session_info.session_id
+            # Update session metadata
+            model_name = getattr(self.llm, 'model_id', 'unknown')
+            self.session_manager.update_metadata(
+                self._current_session_id,
+                title=goal[:50],
+                goal_description=goal,
+                workspace_path=self.workspace,
+                model_name=model_name
+            )
+            # Append user message to session
+            self.session_manager.append_message(self._current_session_id, user_message)
+
+            # Save actor registry if actor factory exists
+            if self.actor_factory is not None:
+                actor_registry = self.actor_factory.get_actor_registry()
+                self.session_manager.update_metadata(
+                    self._current_session_id,
+                    actor_registry=actor_registry
+                )
 
         original_cwd = os.getcwd()
         try:
@@ -231,6 +283,19 @@ class OpenAime:
             # No pre-started actor needed
             logger.debug("Waiting for goal completion")
             final_status = await self._wait_for_goal_completion()
+
+            # Generate execution summary and add as assistant message
+            summary = await self._generate_execution_summary()
+            assistant_message = ChatMessage(role="assistant", content=summary)
+            self._chat_history.append(assistant_message)
+
+            # Also add to planner for next run
+            if self.planner is not None:
+                self.planner.add_assistant_message(summary)
+
+            # Handle session persistence for assistant message
+            if self.auto_save_session and self._current_session_id is not None:
+                self.session_manager.append_message(self._current_session_id, assistant_message)
 
             # Check if goal succeeded or failed
             success = "completed" in final_status.lower() and "failed" not in final_status.lower()
@@ -279,6 +344,9 @@ class OpenAime:
         # Create planner if it doesn't exist
         if self.planner is None:
             self.planner = Planner(self.llm, self.config.planner, emit_event=self._emit_event)
+            # If we have a loaded session, sync chat history to planner
+            if self._current_session_id is not None and self._chat_history:
+                self.planner.load_chat_history(self._chat_history)
 
         # Initialize planner with the goal (will append to chat history if already initialized)
         await self.planner.initialize(goal, self.progress)
@@ -290,6 +358,7 @@ class OpenAime:
                 actor_config=self.config.actor,
                 tool_bundles=self.tool_bundles,
                 skill_registry=self.skill_registry,
+                store_full_actor_history=self.store_full_actor_history,
             )
 
             # Register all individual tools from toolkit as a default bundle
@@ -301,6 +370,12 @@ class OpenAime:
                     tools=self.toolkit.get_all_tools(),
                 )
                 self.actor_factory.register_tool_bundle(default_bundle)
+
+            # If we have a loaded session with actor registry, restore it
+            if self._current_session_id is not None and self.actor_factory is not None:
+                session_info = self.session_manager.get_session_info(self._current_session_id)
+                if session_info and session_info.actor_registry is not None:
+                    self.actor_factory.load_actor_registry(session_info.actor_registry)
 
     async def _wait_for_goal_completion(self) -> str:
         """
@@ -427,6 +502,7 @@ class OpenAime:
         self.planner = None
         self.progress = None
         self.actor_factory = None
+        self._current_session_id = None
 
     def is_session_empty(self) -> bool:
         """
@@ -436,6 +512,35 @@ class OpenAime:
             True if session is empty, False otherwise
         """
         return len(self._chat_history) == 0
+
+    def get_current_session_id(self) -> Optional[str]:
+        """
+        Get the current session ID.
+
+        Returns:
+            Current session ID if set, None otherwise
+        """
+        return self._current_session_id
+
+    def load_session(self, session_id: str) -> None:
+        """
+        Load chat history from a specific session.
+
+        Args:
+            session_id: The session ID to load
+        """
+        logger.debug(f"Loading session: {session_id}")
+        self._current_session_id = session_id
+        self._chat_history = self.session_manager.load_chat_history(session_id)
+
+        # If planner is already initialized, sync chat history
+        if self.planner is not None:
+            self.planner.load_chat_history(self._chat_history)
+
+        # Load actor registry if available
+        session_info = self.session_manager.get_session_info(session_id)
+        if session_info and session_info.actor_registry is not None and self.actor_factory is not None:
+            self.actor_factory.load_actor_registry(session_info.actor_registry)
 
     async def _generate_execution_summary(self) -> str:
         """

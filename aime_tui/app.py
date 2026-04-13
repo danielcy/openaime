@@ -21,6 +21,9 @@ from aime_tui.components import EventStream, ProgressPane, ActorPane, InputBox, 
 from aime.base.events import AimeEvent, EventType
 from aime.aime import OpenAime
 from aime.base.types import Task, ActorRecord
+from aime.base.session import SessionInfo
+from aime.base.session_manager import get_default_session_manager
+from aime_tui.components.session_list_dialog import SessionListDialog
 
 
 class AimeTUI(App):
@@ -232,6 +235,9 @@ class AimeTUI(App):
 
         if command in ["quit", "exit", "q"]:
             self.exit()
+        elif command == "/sessions":
+            self._show_session_list_dialog()
+            return
         elif command in ["pause", "stop"]:
             # TODO: Implement pause functionality
             pass
@@ -307,3 +313,40 @@ class AimeTUI(App):
         # Create and push the dialog screen
         dialog = AskQuestionDialog(question_id, questions)
         self.push_screen(dialog)
+
+    def _show_session_list_dialog(self) -> None:
+        """Show the session list dialog for user to select a session to load."""
+        def on_session_selected(session_id: str) -> None:
+            """Callback when a session is selected."""
+            self._load_session(session_id)
+            self.pop_screen()
+
+        dialog = SessionListDialog(on_session_selected)
+        self.push_screen(dialog)
+
+    def _load_session(self, session_id: str) -> None:
+        """Load a saved session and replay all events to rebuild the UI.
+
+        Args:
+            session_id: The session ID to load
+        """
+        # Load the session into OpenAime
+        self._openaime.load_session(session_id)
+
+        # Get the session info with saved events
+        session_info = self._openaime.session_manager.get_session_info(session_id)
+        if session_info is None or session_info.events is None:
+            return
+
+        # Replay all events to rebuild the UI
+        from aime.base.events import AimeEvent, EventType
+        for event_dict in session_info.events:
+            event_type = EventType(event_dict["event_type"])
+            data = event_dict["data"]
+            event = AimeEvent(event_type=event_type, data=data)
+            self.handle_event(event)
+
+        # Update actors list - actor registry should already be loaded by OpenAime.load_session
+        if self._actor_pane and self._openaime.actor_factory:
+            actors = self._openaime.actor_factory.list_actors()
+            self._actor_pane.update_actors(actors)

@@ -586,3 +586,12 @@ class Planner:
             content: The content of the assistant message
         """
         self._chat_history.append(ChatMessage(role="assistant", content=content))
+
+    def load_chat_history(self, messages: List[ChatMessage]) -> None:
+        """
+        Load chat history from external messages to replace the existing history.
+
+        Args:
+            messages: List of ChatMessage objects to replace the existing chat history
+        """
+        self._chat_history = messages

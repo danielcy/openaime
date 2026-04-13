@@ -54,6 +54,7 @@ class DynamicActor:
         config: ActorConfig,
         emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
         matched_skills: list[Skill] = [],
+        store_full_actor_history: bool = False,
     ):
         """
         Initialize the DynamicActor for a specific subtask.
@@ -70,6 +71,7 @@ class DynamicActor:
             config: Actor configuration
             emit_event: Optional callback to emit events (used for real-time streaming).
             matched_skills: List of matched skills to inject into system prompt
+            store_full_actor_history: Whether to store full actor history in chat history
         """
         self.actor_id = actor_id
         self.role = role
@@ -81,6 +83,7 @@ class DynamicActor:
         self.knowledge = knowledge
         self.config = config
         self._emit_event = emit_event
+        self.store_full_actor_history = store_full_actor_history
 
         self._running = False
         self._lock = asyncio.Lock()
@@ -285,6 +288,14 @@ class DynamicActor:
                         "actor_id": self.actor_id,
                         "thought": thought,
                     })
+                # Add thought to global chat history if enabled
+                if self.store_full_actor_history and thought:
+                    from aime.base.types import ChatMessage
+                    self.planner._chat_history.append(ChatMessage(
+                        role="assistant",
+                        content=f"THOUGHT: {thought}",
+                        message_type="thought"
+                    ))
             elif response.content:
                 # No native tool calls - fall back to text parsing
                 parsed = self._parse_response(response.content)
@@ -312,6 +323,14 @@ class DynamicActor:
                         "actor_id": self.actor_id,
                         "thought": thought,
                     })
+                # Add thought to global chat history if enabled
+                if self.store_full_actor_history and thought:
+                    from aime.base.types import ChatMessage
+                    self.planner._chat_history.append(ChatMessage(
+                        role="assistant",
+                        content=f"THOUGHT: {thought}",
+                        message_type="thought"
+                    ))
                 if tool_name:
                     logger.debug(f"Actor {self.actor_id} text parsed selected tool: {tool_name}")
             else:
@@ -419,6 +438,22 @@ class DynamicActor:
                 role="system",
                 content=f"OBSERVATION: {observation}"
             ))
+
+            # Add action and observation to global chat history if enabled
+            if self.store_full_actor_history and tool_name:
+                from aime.base.types import ChatMessage
+                import json
+                action_content = f"ACTION: {tool_name} - {json.dumps(parameters)}"
+                self.planner._chat_history.append(ChatMessage(
+                    role="assistant",
+                    content=action_content,
+                    message_type="action"
+                ))
+                self.planner._chat_history.append(ChatMessage(
+                    role="user",
+                    content=f"OBSERVATION: {observation}",
+                    message_type="observation"
+                ))
 
             iteration += 1
 
