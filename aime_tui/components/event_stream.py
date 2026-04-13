@@ -312,6 +312,10 @@ class EventStream(RichLog):
             content = self._format_actor_started(event)
             if content:
                 self.write(content)
+        elif event.event_type == EventType.ACTOR_SKILL_LOADED:
+            content = self._format_actor_skill_loaded(event)
+            if content:
+                self.write(content)
         elif event.event_type == EventType.ACTOR_THOUGHT:
             thought_content = self._extract_thought(event)
             if thought_content:
@@ -393,6 +397,26 @@ class EventStream(RichLog):
         # Format: 🤖 Actor Launched:
         #         {role}
         return Text(f"🤖 Actor Launched:\n  {role}", style="bold secondary")
+
+    def _format_actor_skill_loaded(self, event: AimeEvent) -> Text:
+        """Format actor skill loaded event with loaded skill names.
+
+        Args:
+            event: The actor skill loaded event.
+
+        Returns:
+            Formatted Text object.
+        """
+        if not event.data:
+            return Text("")
+
+        skills = event.data.get("skills", [])
+        if not skills:
+            return Text("")
+
+        # Format: 🎯 Skills loaded: skill1, skill2, skill3
+        skills_str = ", ".join(skills)
+        return Text(f"🎯 Skills: {skills_str}", style="bold secondary")
 
     def _format_actor_thought(self, thought: str) -> Text:
         """Format actor thought with special handling for THOUGHT/ACTION format.
