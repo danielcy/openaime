@@ -80,13 +80,15 @@ class AskQuestionDialog(Screen):
 
     def _compose_single_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose single choice question UI."""
-        with RadioSet(id=f"question-options-{q_idx}"):
+        radio_set = RadioSet(id=f"question-options-{q_idx}")
+        with radio_set:
             for opt_idx, option in enumerate(question["options"]):
                 yield RadioButton(
                     option["label"],
                     value=str(opt_idx),
                     id=f"radio-{q_idx}-{opt_idx}"
                 )
+        yield radio_set
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
@@ -96,13 +98,15 @@ class AskQuestionDialog(Screen):
 
     def _compose_multiple_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose multiple choice question UI."""
-        with Container(id=f"question-options-{q_idx}"):
+        container = Container(id=f"question-options-{q_idx}")
+        with container:
             for opt_idx, option in enumerate(question["options"]):
                 yield Checkbox(
                     option["label"],
                     value=str(opt_idx),
                     id=f"checkbox-{q_idx}-{opt_idx}"
                 )
+        yield container
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
@@ -216,7 +220,7 @@ class AskQuestionDialog(Screen):
         """Handle button presses."""
         if event.control.id == "cancel-button":
             await UserQuestionManager.get_instance().cancel_question(self.question_id)
-            await self.dismiss()
+            self.dismiss()
         elif event.control.id == "submit-button":
             await self._submit_answers()
 
@@ -246,8 +250,8 @@ class AskQuestionDialog(Screen):
             final_answers
         )
 
-        await self.dismiss()
+        self.dismiss()
 
-    async def action_dismiss(self) -> None:
+    def action_dismiss(self) -> None:
         """Dismiss the dialog."""
-        await self.dismiss()
+        self.dismiss()
