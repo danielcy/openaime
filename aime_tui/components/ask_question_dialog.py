@@ -108,7 +108,9 @@ class AskQuestionDialog(Screen):
         container = self.query_one("#current-question-container", Container)
 
         # Clear existing content - properly remove all children to free their IDs
-        for child in container.remove_children():
+        children = list(container.children)
+        container.remove_children()
+        for child in children:
             child.remove()
 
         q_idx = self.current_page
