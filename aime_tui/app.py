@@ -17,7 +17,7 @@ from textual.widgets import Header, Footer
 
 from aime_tui.config import TUIConfig
 from aime_tui.theme import get_theme
-from aime_tui.components import EventStream, ProgressPane, ActorPane, InputBox, StatusBar
+from aime_tui.components import EventStream, ProgressPane, ActorPane, InputBox, StatusBar, AskQuestionDialog
 from aime.base.events import AimeEvent, EventType
 from aime.aime import OpenAime
 from aime.base.types import Task, ActorRecord
@@ -152,6 +152,10 @@ class AimeTUI(App):
         # Update status bar based on event type
         self._update_status_from_event(event)
 
+        # Handle user question asked event - show dialog
+        if event.event_type == EventType.USER_QUESTION_ASKED:
+            self._handle_user_question(event)
+
     def _update_progress_from_event(self, event: AimeEvent) -> None:
         """
         Update progress pane from a TASK_STATUS_CHANGED event.
@@ -284,3 +288,17 @@ class AimeTUI(App):
         """
         if self._actor_pane:
             self._actor_pane.update_actors(actors)
+
+    def _handle_user_question(self, event: AimeEvent) -> None:
+        """
+        Handle the USER_QUESTION_ASKED event by pushing the dialog screen.
+
+        Args:
+            event: The USER_QUESTION_ASKED event
+        """
+        question_id = event.data.get("question_id")
+        questions = event.data.get("questions", [])
+
+        # Create and push the dialog screen
+        dialog = AskQuestionDialog(question_id, questions)
+        self.push_screen(dialog)

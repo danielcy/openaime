@@ -5,6 +5,7 @@ from aime_tui.components.progress_pane import ProgressPane
 from aime_tui.components.actor_pane import ActorPane
 from aime_tui.components.input_box import InputBox
 from aime_tui.components.status_bar import StatusBar
+from aime_tui.components.ask_question_dialog import AskQuestionDialog
 
 __all__ = [
     "EventStream",
@@ -12,4 +13,5 @@ __all__ = [
     "ActorPane",
     "InputBox",
     "StatusBar",
+    "AskQuestionDialog",
 ]

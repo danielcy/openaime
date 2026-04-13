@@ -36,7 +36,7 @@ from aime.providers.llm.anthropic import AnthropicLLM
 from aime.providers.llm.openai import OpenAILLM
 from aime.base.tool import Toolkit
 from aime.base.tool import ToolBundle
-from aime.tools.builtin import Read, ShellExec, Update, Write
+from aime.tools.builtin import Read, ShellExec, Update, Write, AskUserQuestion
 
 
 def _ensure_default_config() -> None:
@@ -263,7 +263,8 @@ def main() -> None:
                 ShellExec(),
                 Read(),
                 Write(),
-                Update()
+                Update(),
+                AskUserQuestion()
             ],
             )
         )

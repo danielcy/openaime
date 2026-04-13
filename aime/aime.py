@@ -146,6 +146,11 @@ class OpenAime:
         else:
             self.skill_registry = None
 
+        # Setup UserQuestionManager with event emitter
+        from aime.base.user_question import UserQuestionManager
+        user_question_manager = UserQuestionManager.get_instance()
+        user_question_manager.set_emit_event_callback(self._emit_event)
+
     def _emit_event(self, event_type: EventType, data: dict[str, Any]) -> None:
         """
         Emit an event to the registered callback if it exists.
