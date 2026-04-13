@@ -4,6 +4,7 @@ from .tool import *
 from .config import *
 from .knowledge import *
 from .session import SessionInfo
+from .session_storage import SessionStorage
 
 __all__ = [
     # types
@@ -17,5 +18,5 @@ __all__ = [
     # knowledge
     "BaseKnowledge", "SimpleInMemoryKnowledge",
     # session
-    "SessionInfo",
+    "SessionInfo", "SessionStorage",
 ]
