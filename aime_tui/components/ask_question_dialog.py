@@ -170,8 +170,10 @@ class AskQuestionDialog(Screen):
                 radio_button = RadioButton(
                     option["label"],
                     value=str(opt_idx),
-                    id=f"radio-{q_idx}-{opt_idx}"
+                    id=f"radio-{q_idx}-{opt_idx}",
                 )
+                # Start unselected - RadioSet will select the one we want after all are added
+                radio_button.selected = False
                 radio_set.mount(radio_button)
             # Restore previous answer if any
             if q_idx in self.answers and self.answers[q_idx]:
