@@ -149,7 +149,7 @@ class AskQuestionDialog(Screen):
     async def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Handle single choice radio button changes."""
         question_idx = int(event.radio_set.id.split("-")[2])
-        option_idx = int(event.value) if event.value is not None else -1
+        option_idx = event.index if event.index is not None else -1
 
         # Update answer
         if option_idx >= 0:
