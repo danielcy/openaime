@@ -80,13 +80,19 @@ class AskQuestionDialog(Screen):
 
     def _compose_single_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose single choice question UI."""
-        with RadioSet(id=f"question-options-{q_idx}"):
+        # Create RadioSet with all options inside
+        radio_set = RadioSet(id=f"question-options-{q_idx}")
+        # We need to build the RadioSet content by yielding within its context
+        # The only reliable way in Textual is to yield the container after creating
+        # and have the children yielded inside
+        with radio_set:
             for opt_idx, option in enumerate(question["options"]):
                 yield RadioButton(
                     option["label"],
                     value=str(opt_idx),
                     id=f"radio-{q_idx}-{opt_idx}"
                 )
+        yield radio_set
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
@@ -96,13 +102,16 @@ class AskQuestionDialog(Screen):
 
     def _compose_multiple_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose multiple choice question UI."""
-        with Container(id=f"question-options-{q_idx}"):
+        # Create Container with all options inside
+        container = Container(id=f"question-options-{q_idx}")
+        with container:
             for opt_idx, option in enumerate(question["options"]):
                 yield Checkbox(
                     option["label"],
                     value=str(opt_idx),
                     id=f"checkbox-{q_idx}-{opt_idx}"
                 )
+        yield container
         # "Other" input field (hidden by default)
         yield Input(
             placeholder="Please specify...",
