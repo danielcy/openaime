@@ -175,7 +175,7 @@ class AskQuestionDialog(Screen):
                 radio_set.mount(radio_button)
             # Restore previous answer if any
             if q_idx in self.answers and self.answers[q_idx]:
-                radio_set._index = self.answers[q_idx][0]
+                radio_set.select(self.answers[q_idx][0])
 
             # "Other" input field
             other_input = Input(
