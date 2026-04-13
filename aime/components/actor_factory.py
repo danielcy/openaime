@@ -42,6 +42,7 @@ class ActorFactory:
         actor_config: ActorConfig,
         tool_bundles: Optional[List[ToolBundle]] = None,
         skill_registry: Optional[SkillRegistry] = None,
+        store_full_actor_history: bool = False,
     ):
         """
         Initialize the Actor Factory.
@@ -51,10 +52,12 @@ class ActorFactory:
             actor_config: Default configuration for created actors
             tool_bundles: List of available tool bundles (pre-organized by capability)
             skill_registry: Optional skill registry for matching skills
+            store_full_actor_history: Whether to store full actor history in chat history
         """
         self.base_llm = base_llm
         self.actor_config = actor_config
         self._tool_bundles: dict[str, ToolBundle] = {}
+        self.store_full_actor_history = store_full_actor_history
 
         # Register provided tool bundles
         if tool_bundles:
@@ -147,8 +150,12 @@ If no existing actor is suitable (need to create new), output null.
             if selected_id in self._actors:
                 actor, record = self._actors[selected_id]
                 record.update_last_used()
-                logger.info(f"ActorFactory reusing existing actor: {selected_id}")
-                return actor
+                if actor is not None:
+                    logger.info(f"ActorFactory reusing existing actor: {selected_id}")
+                    return actor
+                else:
+                    logger.debug(f"ActorFactory: Actor {selected_id} exists as metadata only, will recreate")
+                    return None
             else:
                 logger.warning(f"LLM selected non-existent actor_id: {selected_id}, creating new")
                 return None
@@ -254,6 +261,7 @@ If no existing actor is suitable (need to create new), output null.
             config=self.actor_config,
             emit_event=emit_event,
             matched_skills=matched_skills,
+            store_full_actor_history=self.store_full_actor_history,
         )
 
         # Store in registry for future reuse
@@ -353,6 +361,44 @@ Output ONLY the role description, a single sentence.
         """Clear all cached actors."""
         self._actors.clear()
         logger.debug("Actor registry cleared")
+
+    def get_actor_registry(self) -> List[ActorRecord]:
+        """Get the current actor registry (all ActorRecord metadata).
+
+        Returns:
+            List of ActorRecord for all cached actors
+        """
+        return self.list_actors()
+
+    def load_actor_registry(self, records: List[ActorRecord]) -> None:
+        """Load actor registry from persisted records.
+
+        This loads the ActorRecord metadata into the registry.
+        Note: Full DynamicActor instances cannot be persisted because they contain
+        references to current session components (planner, progress). Only the
+        registry metadata is restored, and actors will be recreated when needed.
+
+        Args:
+            records: List of ActorRecord to load
+        """
+        # Clear existing actors
+        self._actors.clear()
+        # Add all loaded records - we store None as the actor instance temporarily,
+        # the actual actor will be created when it's selected for reuse
+        for record in records:
+            self._actors[record.actor_id] = (None, record)
+        # Update actor counter to avoid ID collisions
+        if records:
+            # Find max actor counter from existing actor IDs (format: actor-N-...)
+            max_counter = 0
+            for record in records:
+                import re
+                match = re.match(r'actor-(\d+)-', record.actor_id)
+                if match:
+                    counter = int(match.group(1))
+                    if counter > max_counter:
+                        max_counter = counter
+            self._actor_counter = max_counter + 1
 
     def __repr__(self) -> str:
         """Return string representation."""

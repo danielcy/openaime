@@ -97,10 +97,20 @@ class ActorRecord:
 
 @dataclass
 class ChatMessage:
-    """Chat message for session context retention."""
+    """Chat message for session context retention.
+
+    Attributes:
+        role: Message role - either "user" or "assistant"
+        content: Message content text
+        timestamp: ISO format timestamp when message was created
+        tools: Optional tool call results for persistence
+        message_type: Type of message - "chat" (default), "thought", "action", or "observation"
+    """
     role: Literal["user", "assistant"]
     content: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    tools: Optional[List[dict]] = None  # Optional: tool call results for persistence
+    message_type: Literal["chat", "thought", "action", "observation"] = "chat"
 
 
 class ProgressList:
