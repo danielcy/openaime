@@ -256,6 +256,10 @@ class DynamicActor:
         iteration = 0
         max_iterations = self.config.max_iterations
 
+        # Track recent tool calls for repetition detection
+        recent_tools: list[str] = []
+        max_recent = 6  # Track last 6 tool calls
+
         while iteration < max_iterations:
             async with self._lock:
                 if not self._running:
@@ -405,6 +409,42 @@ class DynamicActor:
                 iteration += 1
                 continue
 
+            # Detect repetitive loops: if we see the same sequence repeating, add a warning observation
+            recent_tools.append(tool_name)
+            if len(recent_tools) > max_recent:
+                recent_tools.pop(0)
+
+            # Check if we're repeating the same sequence (contains the same set of tools repeated)
+            loop_detected = False
+            if len(recent_tools) == max_recent:
+                # Check if first half equals second half = repeating pair
+                half = max_recent // 2
+                if recent_tools[:half] == recent_tools[half:]:
+                    loop_detected = True
+
+            # Detect the "file not found" loop pattern: multiple file_read calls that all failed
+            if tool_name == "file_read" and recent_tools.count("file_read") >= 4:
+                loop_detected = True
+
+            if loop_detected:
+                # Add a guiding observation to break the loop
+                loop_guidance = """
+IMPORTANT OBSERVATION: You appear to be stuck in a loop repeatedly checking the same files.
+- If the file you need does NOT exist yet, you NEED to CREATE it with the file_write tool.
+- Stop checking and GO CREATE the file.
+"""
+                logger.warning(f"Actor {self.actor_id} detected potential loop, adding guidance to break it")
+                self._history.append(Message(
+                    role="assistant",
+                    content=response.content or ""
+                ))
+                self._history.append(Message(
+                    role="system",
+                    content=loop_guidance
+                ))
+                iteration += 1
+                continue
+
             # Execute the tool
             logger.debug(f"Actor {self.actor_id} executing tool {tool_name} with parameters: {parameters}")
             if self._emit_event is not None:
@@ -521,6 +561,8 @@ Important Guidance:
 - If the work for your task has already been partially or fully completed by other actors, build on top of the existing work instead of repeating it
 - Check the artifacts created by previous tasks before starting your work
 - Do not re-do what is already done
+- **If the file you need to write/modify does NOT exist yet, that means you NEED to CREATE it. Do not keep checking for it - go ahead and create it immediately.**
+- Do NOT repeatedly check the same files over and over. If you've already checked a file once, you don't need to check it again - move on to the next step.
 - You are already in the workspace directory. Use relative paths directly (e.g., README.md, src/main.py).
 - Do NOT prepend /workspace to paths and do NOT add cd /workspace to shell commands - the working directory is already set correctly.
 """
