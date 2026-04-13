@@ -320,7 +320,6 @@ class AimeTUI(App):
         def on_session_selected(session_id: str) -> None:
             """Callback when a session is selected."""
             self._load_session(session_id)
-            self.pop_screen()
 
         dialog = SessionListDialog(on_session_selected)
         self.push_screen(dialog)

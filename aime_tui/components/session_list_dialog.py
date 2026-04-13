@@ -56,8 +56,8 @@ class SessionListDialog(Screen):
         selected_item = event.item
         if selected_item and selected_item.id:
             session_id = selected_item.id.replace("session_", "")
-            self._on_session_selected(session_id)
             self.dismiss()
+            self._on_session_selected(session_id)
 
     def action_dismiss(self) -> None:
         """Dismiss the dialog."""
