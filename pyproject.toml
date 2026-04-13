@@ -1,7 +1,7 @@
 [project]
-name = "aime"
+name = "openaime"
 version = "0.1.0"
-description = "Aime: Fully-autonomous Multi-agent Framework"
+description = "OpenAime: Fully-autonomous Multi-agent Framework"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -37,5 +37,4 @@ pythonpath = ["."]
 addopts = "-v"
 
 [project.scripts]
-aime-tui = "aime_tui.main:main"
 openaime = "aime_tui.main:main"

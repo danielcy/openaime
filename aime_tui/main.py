@@ -275,7 +275,7 @@ def main() -> None:
         llm=llm,
         toolkit=toolkit,
         workspace=workspace,
-        log_level=None
+        log_level="info"
     )
 
     # Create TUI app
