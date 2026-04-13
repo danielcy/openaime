@@ -107,14 +107,16 @@ class AskQuestionDialog(Screen):
         """Render the question for the current page."""
         container = self.query_one("#current-question-container", Container)
 
-        # Clear existing content
-        container.remove_children()
+        # Clear existing content - properly remove all children to free their IDs
+        for child in container.remove_children():
+            child.remove()
 
         q_idx = self.current_page
         question = self.questions[q_idx]
 
         # Create question container and mount it first
-        question_container = Container(id=f"question-{q_idx}")
+        # No static ID needed - we don't need to query this container later, it gets recreated on each page change
+        question_container = Container()
         container.mount(question_container)
 
         # Now that question_container is mounted, we can mount children into it
@@ -122,6 +124,10 @@ class AskQuestionDialog(Screen):
         question_container.mount(Label(question["question"], id=f"question-text-{q_idx}"))
 
         # Options
+        # We need unique IDs for querying when showing/hiding "Other" input,
+        # but since we only ever have one question rendered at a time and we clear
+        # the container before rendering, we need to ensure the IDs are available.
+        # The IDs are per question and won't collide because only one question exists in DOM at a time.
         if question.get("multiSelect", False):
             # Multiple choice - use Checkbox
             options_container = Container(id=f"question-options-{q_idx}")
