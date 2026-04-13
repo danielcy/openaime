@@ -185,8 +185,9 @@ class AimeTUI(App):
         """
         Update actor pane with the latest list of actors.
         """
-        actors = self._openaime.actor_factory.list_actors()
-        self.update_actors(actors)
+        if self._openaime.actor_factory is not None:
+            actors = self._openaime.actor_factory.list_actors()
+            self.update_actors(actors)
 
     def _update_status_from_event(self, event: AimeEvent) -> None:
         """
