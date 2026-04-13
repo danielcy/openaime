@@ -155,6 +155,7 @@ Cleaner and more compact event display:
 - **Noise reduction**: Completely hide verbose planner events (`PLANNER_STEP_STARTED`, `PLANNER_THOUGHT`, `PLANNER_TASK_DISPATCHED`) to reduce clutter
 - **Compact tool display**: `ACTOR_TOOL_CALLED` / `ACTOR_TOOL_FINISHED` use compact format: `[time] 🔧tool_name\n  params` - no duplicate titles
 - **Smart formatting for `ACTOR_THOUGHT`**: If it matches `THOUGHT: ... ACTION: ...` format, automatically split to `🤖 ...\n👊🏻 ...`
+- **Better `ACTOR_SKILL_LOADED` display**: Show the loaded skill names instead of just actor ID for better readability
 - **Unified spacing**: Always one blank line between events, no extra spacing inside events
 - **Timestamp same line**: Timestamp and content start on the same line for compactness
 
