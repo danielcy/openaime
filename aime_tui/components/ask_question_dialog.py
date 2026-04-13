@@ -55,30 +55,28 @@ class AskQuestionDialog(Screen):
         with Container(id="dialog-container"):
             with Container(id="dialog-content"):
                 # Header
-                Static("Question", id="dialog-title")
+                yield Static("Question", id="dialog-title")
 
                 # Questions
                 for q_idx, question in enumerate(self.questions):
                     with Container(id=f"question-{q_idx}"):
-                        # Question header chip
-                        Static(question.get("header", "Question"), classes="question-chip")
-                        # Question text
-                        Label(question["question"], id=f"question-text-{q_idx}")
+                        yield Static(question.get("header", "Question"), classes="question-chip")
+                        yield Label(question["question"], id=f"question-text-{q_idx}")
                         # Options
                         if question.get("multiSelect", False):
-                            self._compose_multiple_choice(q_idx, question)
+                            yield from self._compose_multiple_choice(q_idx, question)
                         else:
-                            self._compose_single_choice(q_idx, question)
+                            yield from self._compose_single_choice(q_idx, question)
 
                 # Preview pane
                 with Container(id="preview-pane"):
-                    Static("Preview")
-                    Static("", id="preview-content")
+                    yield Static("Preview")
+                    yield Static("", id="preview-content")
 
                 # Action buttons
                 with Container(id="dialog-buttons"):
-                    Button("Cancel", id="cancel-button")
-                    Button("Submit", variant="primary", id="submit-button", disabled=True)
+                    yield Button("Cancel", id="cancel-button")
+                    yield Button("Submit", variant="primary", id="submit-button", disabled=True)
 
     def _compose_single_choice(self, q_idx: int, question: dict) -> ComposeResult:
         """Compose single choice question UI."""
