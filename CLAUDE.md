@@ -134,9 +134,33 @@ Files:
 - `aime/base/skill.py` - SkillMetadata, Skill, SkillRegistry with hot-reload
 - Modified: `aime/aime.py`, `aime/components/actor_factory.py`, `aime/components/actor.py`
 
+### 10. Interactive User Questions (Ask User)
+
+Allow Actors to actively prompt users for multiple-choice decisions directly in the TUI:
+- **Builtin tool**: `ask_user_question` - Actors can call this tool to get user input
+- **Interactive TUI dialog**: Modal dialog with support for single-choice, multiple-choice, option previews, and free-text "Other" option
+- **Async waiting**: Tool pauses execution waiting for user answer, resumes after submission
+- **Centralized management**: `UserQuestionManager` handles pending questions and answer delivery
+- **Events**: `USER_QUESTION_ASKED`, `USER_QUESTION_ANSWERED` for monitoring
+
+Files:
+- `aime/base/user_question.py` - UserQuestionManager singleton for pending questions
+- `aime/tools/builtin/ask_user_question.py` - Builtin tool implementation
+- `aime_tui/components/ask_question_dialog.py` - Interactive modal dialog component
+- Modified: `aime/base/events.py`, `aime_tui/app.py`, `aime/aime.py`
+
+### 11. TUI Event Stream Optimizations
+
+Cleaner and more compact event display:
+- **Noise reduction**: Completely hide verbose planner events (`PLANNER_STEP_STARTED`, `PLANNER_THOUGHT`, `PLANNER_TASK_DISPATCHED`) to reduce clutter
+- **Compact tool display**: `ACTOR_TOOL_CALLED` / `ACTOR_TOOL_FINISHED` use compact format: `[time] 🔧tool_name\n  params` - no duplicate titles
+- **Smart formatting for `ACTOR_THOUGHT`**: If it matches `THOUGHT: ... ACTION: ...` format, automatically split to `🤖 ...\n👊🏻 ...`
+- **Unified spacing**: Always one blank line between events, no extra spacing inside events
+- **Timestamp same line**: Timestamp and content start on the same line for compactness
+
 ## Testing
 
-- **Total tests**: 207
+- **Total tests**: 213
 - **All tests passing**: ✓ Yes
 - **Test coverage**: Comprehensive coverage for all new features
 
@@ -155,7 +179,8 @@ aime/
 │   ├── llm.py              # LLM base abstraction
 │   ├── tool.py             # Tool base abstraction, Toolkit, ToolBundle
 │   ├── types.py            # Dataclasses: Task, ProgressList, ActorRecord, ChatMessage, etc
-│   └── skill.py            # SkillMetadata, Skill, SkillRegistry with hot-reload
+│   ├── skill.py            # SkillMetadata, Skill, SkillRegistry with hot-reload
+│   └── user_question.py    # UserQuestionManager - manages pending user questions
 ├── components/             # Core components
 │   ├── actor.py            # DynamicActor with ReAct loop
 │   ├── actor_factory.py   # ActorFactory with actor reuse
@@ -165,11 +190,11 @@ aime/
 │   ├── llm/                # LLM providers (Anthropic, OpenAI, Volcengine)
 │   └── tools/              # Tool providers (MCP)
 ├── tools/                  # Builtin tools
-│   └── builtin/            # File read/write/update, shell exec
+│   └── builtin/            # File read/write/update, shell exec, ask_user_question
 ├── aime.py                 # Main OpenAime entry point
 └── aime_tui/               # Terminal User Interface
     ├── app.py             # Main TUI application
-    ├── components/        # TUI components (EventStream, ProgressPane, InputBox, StatusBar)
+    ├── components/        # TUI components (EventStream, ProgressPane, InputBox, StatusBar, AskQuestionDialog)
     ├── assets/            # Styles (aime.tcss)
     └── config.py          # TUI configuration
 ```
