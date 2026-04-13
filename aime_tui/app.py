@@ -145,6 +145,11 @@ class AimeTUI(App):
         if self._progress_pane and event.event_type == EventType.TASK_STATUS_CHANGED:
             self._update_progress_from_event(event)
 
+        # Update progress pane when new goal starts (fresh progress module)
+        # This ensures we don't keep showing the previous goal's task list
+        if self._progress_pane and event.event_type == EventType.PLANNER_GOAL_STARTED:
+            self._update_progress_from_event(event)
+
         # Update actor pane when actors start (actors are created/started)
         if self._actor_pane and event.event_type == EventType.ACTOR_STARTED:
             self._update_actors()
