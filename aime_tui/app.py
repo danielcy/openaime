@@ -236,14 +236,11 @@ class AimeTUI(App):
 
         if command in ["quit", "exit", "q"]:
             self.exit()
-        elif command == "/sessions":
+        elif command in ["/resume", "/sessions"]:
             self._show_session_list_dialog()
             return
         elif command in ["pause", "stop"]:
             # TODO: Implement pause functionality
-            pass
-        elif command in ["resume", "start"]:
-            # TODO: Implement resume functionality
             pass
         elif self._is_running:
             # Already running, treat this as additional instructions
