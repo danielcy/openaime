@@ -82,13 +82,13 @@ class AskQuestionDialog(Screen):
         """Compose single choice question UI."""
         with RadioSet(id=f"question-options-{q_idx}"):
             for opt_idx, option in enumerate(question["options"]):
-                RadioButton(
+                yield RadioButton(
                     option["label"],
                     value=str(opt_idx),
                     id=f"radio-{q_idx}-{opt_idx}"
                 )
         # "Other" input field (hidden by default)
-        Input(
+        yield Input(
             placeholder="Please specify...",
             id=f"other-input-{q_idx}",
             classes="other-input hidden"
@@ -98,13 +98,13 @@ class AskQuestionDialog(Screen):
         """Compose multiple choice question UI."""
         with Container(id=f"question-options-{q_idx}"):
             for opt_idx, option in enumerate(question["options"]):
-                Checkbox(
+                yield Checkbox(
                     option["label"],
                     value=str(opt_idx),
                     id=f"checkbox-{q_idx}-{opt_idx}"
                 )
         # "Other" input field (hidden by default)
-        Input(
+        yield Input(
             placeholder="Please specify...",
             id=f"other-input-{q_idx}",
             classes="other-input hidden"
