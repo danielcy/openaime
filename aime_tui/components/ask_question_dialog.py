@@ -204,22 +204,17 @@ class AskQuestionDialog(Screen):
 
     def _update_page_indicator(self) -> None:
         """Update the page indicator text."""
-        try:
-            indicator = self.query_one("#page-indicator", Static)
-            indicator.update(f"Question {self.current_page + 1} of {len(self.questions)}")
-        except:
-            pass
+        indicator = self.query_one("#page-indicator", Static)
+        indicator.update(f"Question {self.current_page + 1} of {len(self.questions)}")
 
     def _update_navigation_buttons(self) -> None:
         """Update the state of Previous/Next buttons."""
-        try:
-            prev_button = self.query_one("#prev-button", Button)
-            next_button = self.query_one("#next-button", Button)
+        prev_button = self.query_one("#prev-button", Button)
+        next_button = self.query_one("#next-button", Button)
 
-            prev_button.disabled = self.current_page <= 0
-            next_button.disabled = self.current_page >= len(self.questions) - 1
-        except:
-            pass
+        prev_button.disabled = self.current_page <= 0
+        # Next button disabled if current question not answered OR we're on last page
+        next_button.disabled = (self.current_page not in self.answers) or (self.current_page >= len(self.questions) - 1)
 
     def _parse_widget_id(self, widget_id: str) -> tuple[int, int]:
         """Parse widget ID to extract question and option indices."""
