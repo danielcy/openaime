@@ -245,7 +245,7 @@ class DynamicActor:
                     "properties": {
                         "summary": {
                             "type": "string",
-                            "description": "Summary of what you accomplished"
+                            "description": "**COMPREHENSIVE SUMMARY** of what you accomplished: include the actual results, key findings, content created, conclusions, and any important details. This summary will be used by subsequent tasks to build on your work - BE SPECIFIC."
                         }
                     },
                     "required": ["summary"]
@@ -526,7 +526,7 @@ IMPORTANT OBSERVATION: You appear to be stuck in a loop repeatedly checking the 
         tools_description += """
 Special Tool: finish
 Description: Finish the current task when it's completed. Use this when you've achieved the subtask goal.
-Input Schema: {"type": "object", "properties": {"summary": {"type": "string", "description": "Summary of what you accomplished"}}}
+Input Schema: {"type": "object", "properties": {"summary": {"type": "string", "description": "**COMPREHENSIVE SUMMARY** of what you accomplished: include the actual results, key findings, content created, conclusions, and any important details. This summary will be used by subsequent tasks to build on your work - BE SPECIFIC."}}}
 """
 
         # Add environment context (ε from paper)
