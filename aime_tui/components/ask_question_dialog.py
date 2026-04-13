@@ -62,11 +62,37 @@ class AskQuestionDialog(Screen):
                     with Container(id=f"question-{q_idx}"):
                         yield Static(question.get("header", "Question"), classes="question-chip")
                         yield Label(question["question"], id=f"question-text-{q_idx}")
-                        # Options
+                        # Options - inline directly here to avoid compose context issues
                         if question.get("multiSelect", False):
-                            yield from self._compose_multiple_choice(q_idx, question)
+                            # Multiple choice - use Checkbox
+                            with Container(id=f"question-options-{q_idx}"):
+                                for opt_idx, option in enumerate(question["options"]):
+                                    yield Checkbox(
+                                        option["label"],
+                                        value=str(opt_idx),
+                                        id=f"checkbox-{q_idx}-{opt_idx}"
+                                    )
+                            # "Other" input field (hidden by default)
+                            yield Input(
+                                placeholder="Please specify...",
+                                id=f"other-input-{q_idx}",
+                                classes="other-input hidden"
+                            )
                         else:
-                            yield from self._compose_single_choice(q_idx, question)
+                            # Single choice - use RadioSet
+                            with RadioSet(id=f"question-options-{q_idx}"):
+                                for opt_idx, option in enumerate(question["options"]):
+                                    yield RadioButton(
+                                        option["label"],
+                                        value=str(opt_idx),
+                                        id=f"radio-{q_idx}-{opt_idx}"
+                                    )
+                            # "Other" input field (hidden by default)
+                            yield Input(
+                                placeholder="Please specify...",
+                                id=f"other-input-{q_idx}",
+                                classes="other-input hidden"
+                            )
 
                 # Preview pane
                 with Container(id="preview-pane"):
@@ -77,47 +103,6 @@ class AskQuestionDialog(Screen):
                 with Container(id="dialog-buttons"):
                     yield Button("Cancel", id="cancel-button")
                     yield Button("Submit", variant="primary", id="submit-button", disabled=True)
-
-    def _compose_single_choice(self, q_idx: int, question: dict) -> ComposeResult:
-        """Compose single choice question UI."""
-        # Create RadioSet with all options inside
-        radio_set = RadioSet(id=f"question-options-{q_idx}")
-        # We need to build the RadioSet content by yielding within its context
-        # The only reliable way in Textual is to yield the container after creating
-        # and have the children yielded inside
-        with radio_set:
-            for opt_idx, option in enumerate(question["options"]):
-                yield RadioButton(
-                    option["label"],
-                    value=str(opt_idx),
-                    id=f"radio-{q_idx}-{opt_idx}"
-                )
-        yield radio_set
-        # "Other" input field (hidden by default)
-        yield Input(
-            placeholder="Please specify...",
-            id=f"other-input-{q_idx}",
-            classes="other-input hidden"
-        )
-
-    def _compose_multiple_choice(self, q_idx: int, question: dict) -> ComposeResult:
-        """Compose multiple choice question UI."""
-        # Create Container with all options inside
-        container = Container(id=f"question-options-{q_idx}")
-        with container:
-            for opt_idx, option in enumerate(question["options"]):
-                yield Checkbox(
-                    option["label"],
-                    value=str(opt_idx),
-                    id=f"checkbox-{q_idx}-{opt_idx}"
-                )
-        yield container
-        # "Other" input field (hidden by default)
-        yield Input(
-            placeholder="Please specify...",
-            id=f"other-input-{q_idx}",
-            classes="other-input hidden"
-        )
 
     def _parse_widget_id(self, widget_id: str) -> tuple[int, int]:
         """Parse widget ID to extract question and option indices."""
