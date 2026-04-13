@@ -281,6 +281,39 @@ AskQuestionDialog {
   overflow-y: auto;
 }
 
+/* Page indicator styling */
+.page-indicator {
+  width: 100%;
+  content-align: center middle;
+  height: 1;
+  color: $foreground-muted;
+  margin-bottom: 1;
+}
+
+/* Question options container */
+#question-options {
+  width: 100%;
+  margin-bottom: 1;
+  padding-left: 1;
+}
+
+/* Dialog buttons container */
+#dialog-buttons {
+  height: 3;
+  width: 100%;
+  margin-top: 1;
+  layout: horizontal;
+}
+
+#cancel-button {
+  width: 20;
+  margin-right: 1;
+}
+
+#submit-button {
+  width: 20;
+}
+
 #dialog-buttons {
   height: 3;
   width: 100%;

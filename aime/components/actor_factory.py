@@ -188,6 +188,8 @@ If no existing actor is suitable (need to create new), output null.
         if existing_actor is not None:
             # Update the task on the reused actor and reset state
             existing_actor.task = task
+            existing_actor.planner = planner
+            existing_actor.progress = progress
             async with existing_actor._lock:
                 existing_actor._running = False
             existing_actor._history.clear()

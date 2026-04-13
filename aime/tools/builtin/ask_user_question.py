@@ -26,65 +26,60 @@ class AskUserQuestion(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "questions": {
+                "question": {
+                    "type": "string",
+                    "description": "The complete question text ending with question mark"
+                },
+                "header": {
+                    "type": "string",
+                    "maxLength": 12,
+                    "description": "Short label for the question (max 12 characters)"
+                },
+                "options": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
-                    "description": "List of questions to ask the user",
+                    "minItems": 2,
+                    "maxItems": 6,
+                    "description": "List of available options",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "question": {
+                            "label": {
                                 "type": "string",
-                                "description": "The complete question text ending with question mark"
+                                "description": "Short option label"
                             },
-                            "header": {
+                            "description": {
                                 "type": "string",
-                                "maxLength": 12,
-                                "description": "Short label for the question (max 12 characters)"
+                                "description": "Detailed description of the option"
                             },
-                            "options": {
-                                "type": "array",
-                                "minItems": 2,
-                                "maxItems": 4,
-                                "description": "List of available options",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "label": {
-                                            "type": "string",
-                                            "description": "Short option label"
-                                        },
-                                        "description": {
-                                            "type": "string",
-                                            "description": "Detailed description of the option"
-                                        },
-                                        "preview": {
-                                            "type": "string",
-                                            "description": "Optional preview text for the option"
-                                        }
-                                    },
-                                    "required": ["label", "description"]
-                                }
-                            },
-                            "multiSelect": {
-                                "type": "boolean",
-                                "default": False,
-                                "description": "Allow multiple selection (default: false)"
+                            "preview": {
+                                "type": "string",
+                                "description": "Optional preview text for the option"
                             }
                         },
-                        "required": ["question", "header", "options"]
+                        "required": ["label", "description"]
                     }
+                },
+                "multiSelect": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Allow multiple selection (default: false)"
                 }
             },
-            "required": ["questions"]
+            "required": ["question", "header", "options"]
         }
 
     async def execute(self, parameters: dict[str, Any]) -> ToolResult:
         """Execute the tool: emit question event and wait for user answer."""
-        # Get questions from parameters
-        questions = parameters.get("questions", [])
+        # Get single question from parameters
+        question_data = {
+            "question": parameters.get("question", ""),
+            "header": parameters.get("header", ""),
+            "options": parameters.get("options", []),
+            "multiSelect": parameters.get("multiSelect", False),
+        }
 
+        # Wrap as single question list for compatibility with manager
+        questions = [question_data]
 
         try:
             # Use UserQuestionManager to ask the question and wait for answer
@@ -93,7 +88,7 @@ class AskUserQuestion(BaseTool):
 
             return ToolResult(
                 success=True,
-                content=json.dumps(result, indent=2)
+                content=json.dumps(result, indent=2, ensure_ascii=False)
             )
         except asyncio.CancelledError:
             return ToolResult(
