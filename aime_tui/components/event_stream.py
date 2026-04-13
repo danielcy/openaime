@@ -33,6 +33,7 @@ class EventStream(RichLog):
             markup=True,
             auto_scroll=config.auto_scroll,
             max_lines=config.max_event_lines,
+            wrap=True,
             **kwargs
         )
         self._config = config
