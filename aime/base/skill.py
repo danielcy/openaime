@@ -246,7 +246,10 @@ Example Output:
 """
         messages = [Message(role="user", content=prompt)]
         response = llm.complete(messages, temperature=0.0)
-        content = response.content.strip() if response.content else "[]"
+        if response is None or not response.content:
+            content = "[]"
+        else:
+            content = response.content.strip()
 
         # Extract JSON from response
         import json
