@@ -4,7 +4,7 @@ Open-Source implementation of the AIME (Autonomous Interactive Execution Engine)
 
 ## Project Status
 
-✅ **All major features implemented and tested** (193/193 tests passing)
+✅ **All major features implemented and tested** (236/236 tests passing)
 
 ## Implemented Features
 
@@ -158,9 +158,29 @@ Cleaner and more compact event display:
 - **Unified spacing**: Always one blank line between events, no extra spacing inside events
 - **Timestamp same line**: Timestamp and content start on the same line for compactness
 
+### 12. Session Persistence
+
+Full session persistence for stopping and resuming work later:
+- **Global session storage**: All sessions saved to `~/.openaime/sessions/{session_id}/`
+- **Complete state preservation**:
+  - Chat history with `message_type` differentiation (`chat`/`thought`/`action`/`observation`)
+  - Full actor registry metadata - actors can be reused after restore
+  - All UI events saved for full replay - TUI restored exactly as it was
+- **TUI integration**: `/sessions` command opens session list dialog, click to load
+- **Default enabled**: `auto_save_session = True`, `store_full_actor_history = True` - zero-config usage
+- **Backward compatible**: All existing code unchanged, new fields have default values
+
+Files:
+- `aime/base/session.py` - `SessionInfo` metadata dataclass
+- `aime/base/session_storage.py` - Low-level file system operations
+- `aime/base/session_manager.py` - High-level session business logic
+- `aime/base/__init__.py` - Export session-related classes
+- `aime_tui/components/session_list_dialog.py` - TUI session selection dialog
+- Modified: `aime/base/config.py`, `aime/base/types.py`, `aime/aime.py`, `aime/components/actor.py`, `aime/components/actor_factory.py`, `aime_tui/app.py`
+
 ## Testing
 
-- **Total tests**: 213
+- **Total tests**: 236
 - **All tests passing**: ✓ Yes
 - **Test coverage**: Comprehensive coverage for all new features
 

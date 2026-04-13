@@ -57,9 +57,16 @@ class SessionStorage:
                             data = json.load(f)
                             # Deserialize actor_registry if present
                             if data.get('actor_registry'):
+                                from datetime import datetime
                                 from aime.base.types import ActorRecord
                                 data['actor_registry'] = [
-                                    ActorRecord(**actor_dict)
+                                    ActorRecord(
+                                        **{
+                                            **actor_dict,
+                                            'created_at': datetime.fromisoformat(actor_dict['created_at']),
+                                            'last_used_at': datetime.fromisoformat(actor_dict['last_used_at']),
+                                        }
+                                    )
                                     for actor_dict in data['actor_registry']
                                 ]
                             sessions.append(SessionInfo(**data))
@@ -105,9 +112,16 @@ class SessionStorage:
                 data = json.load(f)
                 # Deserialize actor_registry if present
                 if data.get('actor_registry'):
+                    from datetime import datetime
                     from aime.base.types import ActorRecord
                     data['actor_registry'] = [
-                        ActorRecord(**actor_dict)
+                        ActorRecord(
+                            **{
+                                **actor_dict,
+                                'created_at': datetime.fromisoformat(actor_dict['created_at']),
+                                'last_used_at': datetime.fromisoformat(actor_dict['last_used_at']),
+                            }
+                        )
                         for actor_dict in data['actor_registry']
                     ]
                 return SessionInfo(**data)
