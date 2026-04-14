@@ -179,6 +179,20 @@ Files:
 - `aime_tui/components/session_list_dialog.py` - TUI session selection dialog
 - Modified: `aime/base/config.py`, `aime/base/types.py`, `aime/aime.py`, `aime/components/actor.py`, `aime/components/actor_factory.py`, `aime_tui/app.py`
 
+### 13. Native Function Calling
+
+Pure native function calling for improved reliability:
+- **Removed text-based ReAct parsing** - fully leverage LLM provider's native tool calling capability
+- **No more JSON parsing errors** from truncated output (fixes the issue where long content like writing full chapters gets cut off)
+- **LLM no longer confused** - mixed mode (text + native) confused LLM into using text format even when native was available
+- **Simpler system prompt** - tool descriptions removed from prompt (already passed via API), shorter prompt saves tokens
+- **Retry handling** - 3 retries for empty tool calls before failing
+- **Backward compatible** - all three providers (OpenAI, Anthropic, Volcengine) already support native function calling
+
+Files:
+- `aime/components/actor.py` - updated system prompt, updated ReAct loop, removed dead code (`_parse_response`, `_clean_llm_json`)
+- `tests/components/test_actor.py` - updated tests to expect native tool calls
+
 ## Testing
 
 - **Total tests**: 236
