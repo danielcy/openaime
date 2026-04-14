@@ -9,7 +9,7 @@ from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
 from aime.components.planner import Planner
 from aime.base.config import ActorConfig
-from aime.base.llm import BaseLLM, Message, LLMResponse, ToolCall
+from aime.base.llm import BaseLLM, Message, LLMResponse, ToolCall, LLMResponseChunk
 from aime.base.tool import Toolkit, ToolBundle, BaseTool, ToolResult
 from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
 from aime.base.types import Task, TaskStatus
@@ -119,7 +119,11 @@ async def test_actor_basic_execution_flow():
             )
 
         async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
-            yield None
+            yield LLMResponseChunk(
+                content='THOUGHT: Task is complete',
+                tool_call_delta=ToolCall(name="finish", parameters={"summary": "Done"}),
+                is_final=True
+            )
 
     mock_llm = FinishMockLLM()
 
@@ -171,7 +175,11 @@ async def test_actor_with_no_tools():
             return LLMResponse(content='', tool_calls=[])
 
         async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
-            yield None
+            yield LLMResponseChunk(
+                content='',
+                tool_call_delta=None,
+                is_final=True
+            )
 
     mock_llm = EmptyMockLLM()
 
@@ -223,7 +231,11 @@ async def test_actor_tool_selection():
             )
 
         async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
-            yield None
+            yield LLMResponseChunk(
+                content='THOUGHT: I need to use the test tool',
+                tool_call_delta=ToolCall(name="test_tool", parameters={"test": "value"}),
+                is_final=True
+            )
 
     mock_llm = ToolSelectMockLLM()
 
@@ -275,7 +287,11 @@ async def test_actor_with_failed_task():
             )
 
         async def complete_stream(self, messages: list[Message], temperature: float | None = None, tools: list[dict[str, any]] | None = None):
-            yield None
+            yield LLMResponseChunk(
+                content='THOUGHT: I need to use the test tool',
+                tool_call_delta=ToolCall(name="test_tool", parameters={"test": "value"}),
+                is_final=True
+            )
 
     mock_llm = FailingToolMockLLM()
 

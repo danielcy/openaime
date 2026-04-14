@@ -19,7 +19,7 @@ from typing import Optional, List, Tuple, Any, Callable
 
 from aime.base.types import Task, TaskStatus, ActorResult, ArtifactReference
 from aime.base.tool import ToolResult
-from aime.base.llm import BaseLLM, Message
+from aime.base.llm import BaseLLM, Message, LLMResponseChunk, LLMResponse, ToolCall
 from aime.base.tool import BaseTool, Toolkit
 from aime.base.config import ActorConfig
 from aime.base.knowledge import BaseKnowledge
@@ -275,9 +275,34 @@ class DynamicActor:
 
             logger.debug(f"Actor {self.actor_id} ReAct iteration {iteration + 1}/{max_iterations}")
 
-            # Get LLM prediction with tool definitions
-            response = await self.llm.complete(
-                self._history, temperature=self.config.temperature, tools=tools
+            # Get LLM response with streaming - incremental output to TUI
+            full_content: list[str] = []
+            tool_calls: list[ToolCall] = []
+
+            async for chunk in self.llm.complete_stream(
+                self._history,
+                temperature=self.config.temperature,
+                tools=tools,
+            ):
+                if chunk.content is not None:
+                    full_content.append(chunk.content)
+                    # Send incremental output event for TUI real-time display
+                    if self._emit_event:
+                        self._emit_event(EventType.ACTOR_INCREMENTAL_OUTPUT, {
+                            "actor_id": self.actor_id,
+                            "actor_name": self.name,
+                            "text": chunk.content,
+                            "full_text_so_far": "".join(full_content),
+                        })
+                if chunk.tool_call_delta is not None:
+                    tool_calls.append(chunk.tool_call_delta)
+                # is_final indicates the last chunk - no special action needed until streaming completes
+
+            # Create complete response compatible with existing code
+            full_text = "".join(full_content) if full_content else None
+            response = LLMResponse(
+                content=full_text,
+                tool_calls=tool_calls,
             )
 
             # Check for native tool calls
