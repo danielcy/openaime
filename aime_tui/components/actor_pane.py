@@ -85,7 +85,7 @@ class ActorPane(Tree):
     def _build_actor_label(self, actor: ActorRecord) -> Text:
         """Build a rich text label for an actor.
 
-        Shows actor role and shortened actor ID.
+        Shows actor name (falls back to role) and shortened actor ID.
 
         Args:
             actor: The actor to build a label for.
@@ -99,9 +99,10 @@ class ActorPane(Tree):
         # Build the label parts
         parts = []
 
-        # Actor role (main label)
-        role = Text(actor.role, style="blue")
-        parts.append(role)
+        # Actor name (main label) - fall back to role if name empty
+        display_name = actor.name if actor.name else actor.role
+        label = Text(display_name, style="blue")
+        parts.append(label)
 
         # Short actor ID
         parts.append(Text(f" ({short_id})", style="dim"))
