@@ -87,6 +87,7 @@ class ActorRecord:
     role: str  # actor name/role description (ρ_t from paper)
     description: str  # description of what this actor is good for
     tool_bundles: List[str]  # list of tool bundle names this actor has
+    name: str = ""  # Short human-readable name (e.g. "Python Developer"), empty string for backward compatibility
     created_at: datetime = field(default_factory=datetime.now)
     last_used_at: datetime = field(default_factory=datetime.now)
 
