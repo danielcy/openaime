@@ -377,7 +377,7 @@ class EventStream(RichLog):
         return Text("\n".join(formatted_lines))
 
     def _format_actor_started(self, event: AimeEvent) -> Text:
-        """Format actor started event with role display.
+        """Format actor started event with name and role display.
 
         Args:
             event: The actor started event.
@@ -388,6 +388,7 @@ class EventStream(RichLog):
         if not event.data:
             return Text("")
 
+        name = event.data.get("name")
         role = event.data.get("role", "")
         if not role:
             return Text("")
@@ -396,9 +397,14 @@ class EventStream(RichLog):
         if len(role) > 100:
             role = role[:97] + "..."
 
-        # Format: 🤖 Actor Launched:
-        #         {role}
-        return Text(f"🤖 Actor Launched:\n  {role}", style="bold secondary")
+        if name and name != role:
+            # Truncate name if needed
+            if len(name) > 30:
+                name = name[:27] + "..."
+            content = f"🤖 {name} - {role}"
+        else:
+            content = f"🤖 {role}"
+        return Text(content, style="bold green")
 
     def _format_actor_skill_loaded(self, event: AimeEvent) -> Text:
         """Format actor skill loaded event with loaded skill names.
