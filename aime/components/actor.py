@@ -55,6 +55,7 @@ class DynamicActor:
         emit_event: None | Callable[[EventType, dict[str, Any]], None] = None,
         matched_skills: list[Skill] = [],
         store_full_actor_history: bool = False,
+        name: str = "",
     ):
         """
         Initialize the DynamicActor for a specific subtask.
@@ -72,8 +73,10 @@ class DynamicActor:
             emit_event: Optional callback to emit events (used for real-time streaming).
             matched_skills: List of matched skills to inject into system prompt
             store_full_actor_history: Whether to store full actor history in chat history
+            name: Short human-readable name for this actor
         """
         self.actor_id = actor_id
+        self.name = name
         self.role = role
         self.task = task
         self.llm = llm
@@ -109,6 +112,7 @@ class DynamicActor:
             self._emit_event(EventType.ACTOR_STARTED, {
                 "actor_id": self.actor_id,
                 "task_id": self.task.id,
+                "name": self.name,
                 "role": self.role,
             })
             # Emit skill loaded event if any skills are loaded
