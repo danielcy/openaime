@@ -58,6 +58,13 @@ class BaseLLM(ABC):
         self,
         messages: list[Message],
         temperature: Optional[float] = None,
+        tools: Optional[List[dict[str, Any]]] = None,
     ) -> AsyncIterator[LLMResponseChunk]:
-        """Stream the response."""
+        """Stream the response.
+
+        Args:
+            messages: List of conversation messages
+            temperature: Sampling temperature
+            tools: Optional list of tool definitions for native tool calling
+        """
         pass
