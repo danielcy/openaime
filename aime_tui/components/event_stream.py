@@ -552,6 +552,16 @@ class EventStream(RichLog):
 
         return parts
 
+    def add_incremental_output(self, event_data: dict[str, Any]) -> None:
+        """Add incremental actor output to the stream for real-time display.
+
+        Args:
+            event_data: Dictionary containing incremental output data
+        """
+        output = event_data.get("output", "")
+        if output:
+            self.write(Text(output))
+
     def _format_multiline_text(self, text: str) -> Text:
         """Format multiline text with proper indentation.
 

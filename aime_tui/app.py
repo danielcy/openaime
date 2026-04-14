@@ -12,7 +12,7 @@ controlling OpenAime execution. Features include:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Any
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
@@ -197,6 +197,11 @@ class AimeTUI(App):
         Args:
             event: The AimeEvent from OpenAime
         """
+        # Handle incremental output specially
+        if event.event_type == EventType.ACTOR_INCREMENTAL_OUTPUT:
+            self._on_actor_incremental_output(event.event_type, event.data)
+            return
+
         # Update event stream
         if self._event_stream:
             self._event_stream.add_event(event)
@@ -220,6 +225,11 @@ class AimeTUI(App):
         # Handle user question asked event - show dialog
         if event.event_type == EventType.USER_QUESTION_ASKED:
             self._handle_user_question(event)
+
+    def _on_actor_incremental_output(self, event_type: EventType, event_data: dict[str, Any]) -> None:
+        """Handle incremental actor output for real-time display."""
+        if self._event_stream:
+            self._event_stream.add_incremental_output(event_data)
 
     def _update_progress_from_event(self, event: AimeEvent) -> None:
         """
@@ -327,10 +337,15 @@ class AimeTUI(App):
         # Reset state
         self._current_iteration = 0
         self._execution_start_time = None
-        self._is_running = False
+        self._is_running = True
 
-        # Run OpenAime
-        result = await self._openaime.run(goal)
+        try:
+            # Run OpenAime
+            result = await self._openaime.run(goal)
+        finally:
+            self._is_running = False
+
+        return result
 
         return result
 
