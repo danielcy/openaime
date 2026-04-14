@@ -104,7 +104,7 @@ class ActorFactory:
 
         # Build prompt for LLM decision
         existing_actors = "\n".join([
-            f"- Actor ID: {record.actor_id}\n  Role: {record.role}\n  Description: {record.description}\n  Tool Bundles: {', '.join(record.tool_bundles)}"
+            f"- Actor Name: {record.name}\n  Actor ID: {record.actor_id}\n  Role: {record.role}\n  Description: {record.description}\n  Tool Bundles: {', '.join(record.tool_bundles)}\n  Last used: {record.last_used_at.strftime('%Y-%m-%d %H:%M')}"
             for _, record in self._actors.values()
         ])
 
@@ -120,8 +120,15 @@ An existing actor can be reused if its role, description, and available tools ma
 
 # Instructions
 Analyze the new task requirements and compare them against the capabilities of each existing actor.
-If one existing actor is clearly suitable, output ONLY its actor_id in JSON format.
-If no existing actor is suitable (need to create new), output null.
+- **Prioritize reusing existing actors when capabilities are ROUGHLY matching** — you do NOT need an exact match.
+- **Reuse is more efficient than creating new actors** — only create new when no existing actor is even close.
+- If one existing actor is clearly suitable, output ONLY its actor_id in JSON format.
+- If no existing actor is suitable (need to create new), output null.
+
+"Roughly matching" examples:
+- If existing actor is "Python Developer" and new task is modifying Python code → REUSE
+- If existing actor is "fiction Writer" and new task is writing a blog post → REUSE
+- Only create new when the capability is completely different
 
 # Output Format
 {{"actor_id": "actor-id-or-null"}}
@@ -238,6 +245,9 @@ If no existing actor is suitable (need to create new), output null.
         for bundle in selected_bundles:
             toolkit.add_bundle(bundle)
 
+        # Get selected bundle names
+        selected_bundle_names = [b.name for b in selected_bundles]
+
         # Retrieve relevant knowledge
         # TODO: knowledge retrieval based on task description
 
@@ -247,6 +257,22 @@ If no existing actor is suitable (need to create new), output null.
 
         # Generate actor description
         description = await self._generate_description(task, role)
+
+        # Generate short name for the actor
+        from aime.base.llm import Message
+        name_prompt = f"""Given the role description and selected tool bundles below, generate a short 2-6 word name for this actor that clearly describes its specialization.
+Output ONLY the name, no extra text, explanation, or punctuation.
+
+Role: {role}
+Tool Bundles: {', '.join(selected_bundle_names)}
+"""
+        name_messages = [Message(role="user", content=name_prompt)]
+        name_response = await self.base_llm.complete(name_messages, temperature=0.3)
+        name = name_response.content.strip()
+        name = name.strip('"\'')
+        # Truncate to keep it compact
+        if len(name) > 30:
+            name = name[:27] + "..."
 
         # Create actor instance
         actor = DynamicActor(
@@ -262,12 +288,13 @@ If no existing actor is suitable (need to create new), output null.
             emit_event=emit_event,
             matched_skills=matched_skills,
             store_full_actor_history=self.store_full_actor_history,
+            name=name,
         )
 
         # Store in registry for future reuse
-        selected_bundle_names = [b.name for b in selected_bundles]
         record = ActorRecord(
             actor_id=actor_id,
+            name=name,
             role=role,
             description=description,
             tool_bundles=selected_bundle_names,
@@ -386,6 +413,12 @@ Output ONLY the role description, a single sentence.
         # Add all loaded records - we store None as the actor instance temporarily,
         # the actual actor will be created when it's selected for reuse
         for record in records:
+            # Backward compatibility: if record has no name, generate fallback from role
+            if not record.name:
+                if len(record.role) > 50:
+                    record.name = record.role[:50] + "..."
+                else:
+                    record.name = record.role
             self._actors[record.actor_id] = (None, record)
         # Update actor counter to avoid ID collisions
         if records:
