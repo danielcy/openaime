@@ -33,6 +33,7 @@ class EventType(str, Enum):
     ACTOR_THOUGHT = "actor_thought"
     ACTOR_TOOL_CALLED = "actor_tool_called"
     ACTOR_TOOL_FINISHED = "actor_tool_finished"
+    ACTOR_INCREMENTAL_OUTPUT = "actor_incremental_output"
     ACTOR_FINISHED = "actor_finished"
 
     # Progress/Task status change events
