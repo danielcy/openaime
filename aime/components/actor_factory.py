@@ -133,13 +133,12 @@ Analyze the new task requirements and compare them against the capabilities of e
 # Output Format
 {{"actor_id": "actor-id-or-null"}}
 """
-        # Get LLM completion
-        from aime.base.llm import Message
-        messages = [Message(role="user", content=prompt)]
-        response = await self.base_llm.complete(messages, temperature=0.0)
-
-        # Parse response
+        # Get LLM completion and parse response
         try:
+            from aime.base.llm import Message
+            messages = [Message(role="user", content=prompt)]
+            response = await self.base_llm.complete(messages, temperature=0.0)
+
             import json
             content = response.content.strip()
             # Extract JSON if it has extra text
