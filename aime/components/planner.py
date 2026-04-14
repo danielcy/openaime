@@ -350,6 +350,7 @@ class Planner:
             "# Important Guidelines\n"
             "- **MINIMIZE number of subtasks**: Create AS FEW new subtasks as possible. PREFER larger, more comprehensive tasks over many tiny unnecessary subtasks.\n"
             "- **Decompose ONLY when genuinely needed**: Only add new subtasks when they are genuinely needed to achieve the goal. If unsure, DO NOT add a new subtask.\n"
+            "- **After adding all needed subtasks, you MUST dispatch**: Once you have added all the necessary subtasks that are ready to execute, you MUST include a `dispatch_subtask` action to start the execution of one pending subtask. **DO NOT** just add subtasks and stop - you must dispatch to make progress.\n"
             "- **Handle failures**: If a task fails, you can mark it as failed and revise the plan accordingly.\n"
             "- **Check dependencies**: Make sure tasks are done in the correct order.\n"
             "- **Be patient**: Don't rush to complete the goal. Wait for ongoing tasks to finish.\n"
