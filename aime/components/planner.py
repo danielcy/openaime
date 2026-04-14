@@ -350,6 +350,7 @@ class Planner:
             "# Important Guidelines\n"
             "- **MINIMIZE number of subtasks**: Create AS FEW new subtasks as possible. PREFER larger, more comprehensive tasks over many tiny unnecessary subtasks.\n"
             "- **Decompose ONLY when genuinely needed**: Only add new subtasks when they are genuinely needed to achieve the goal. If unsure, DO NOT add a new subtask.\n"
+            "- **ADD IN LOGICAL EXECUTION ORDER**: When adding multiple new subtasks, add tasks that need to be executed FIRST before tasks that depend on them.\n"
             "- **After adding all needed subtasks, you MUST dispatch**: Once you have added all the necessary subtasks that are ready to execute, you MUST include a `dispatch_subtask` action to start the execution of one pending subtask. **DO NOT** just add subtasks and stop - you must dispatch to make progress.\n"
             "- **Handle failures**: If a task fails, you can mark it as failed and revise the plan accordingly.\n"
             "- **Check dependencies**: Make sure tasks are done in the correct order.\n"
@@ -463,7 +464,8 @@ class Planner:
                         try:
                             parsed = json.loads(json_match.group())
                             task_id = parsed.get("task_id")
-                        except Exception:
+                        except Exception as e:
+                            logger.debug(f"Failed to parse task_id from JSON: {e}")
                             pass
                     results.append(PlannerOutput(
                         action=PlannerOutput.Action.DISPATCH_SUBTASK,
@@ -477,7 +479,7 @@ class Planner:
                     results.append(PlannerOutput(action=PlannerOutput.Action.WAIT))
 
             except Exception as e:
-                logger.warning(f"Failed to parse action line '{line}': {e}")
+                logger.exception(f"Failed to parse action line '{line}': {e}")
                 continue
 
         return results
@@ -501,10 +503,11 @@ class Planner:
             "1. **MINIMIZE number of subtasks**: Split into AS FEW subtasks as possible. PREFER LARGER tasks over splitting into many small unnecessary subtasks.\n"
             "2. **Decompose ONLY when genuinely needed**: If the goal can be accomplished as a single task (even if it's a large task), keep it as ONE subtask. DO NOT split just for the sake of splitting.\n"
             "3. Only break into multiple subtasks when the tasks are genuinely independent and ALL of them definitely need to be done to achieve the goal.\n"
-            "4. If you're unsure whether to split or not, DO NOT split - keep it as one subtask.\n"
-            "5. For each subtask, provide a clear description and completion criteria\n"
-            "6. Output the list as JSON array\n"
-            "7. Each subtask must have 'description' and 'completion_criteria' fields\n\n"
+            "4. **OUTPUT IN LOGICAL EXECUTION ORDER**: Tasks that need to be executed FIRST must appear EARLIER in the JSON array. Tasks that depend on earlier work must come LATER in the array.\n"
+            "5. If you're unsure whether to split or not, DO NOT split - keep it as one subtask.\n"
+            "6. For each subtask, provide a clear description and completion criteria\n"
+            "7. Output the list as JSON array\n"
+            "8. Each subtask must have 'description' and 'completion_criteria' fields\n\n"
             "Output format:\n"
             "```json\n"
             "[\n"
@@ -531,20 +534,24 @@ class Planner:
                 json_match = re.search(r'(\[\s*\{.*\}\s*\])', response, re.DOTALL)
 
             if json_match:
-                parsed = json.loads(json_match.group(1))
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    # Validate each subtask
-                    valid_subtasks = []
-                    for item in parsed:
-                        if isinstance(item, dict) and 'description' in item:
-                            if 'completion_criteria' not in item:
-                                item['completion_criteria'] = item['description']
-                            valid_subtasks.append(item)
-                    if valid_subtasks:
-                        return valid_subtasks
+                try:
+                    parsed = json.loads(json_match.group(1))
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        # Validate each subtask
+                        valid_subtasks = []
+                        for item in parsed:
+                            if isinstance(item, dict) and 'description' in item:
+                                if 'completion_criteria' not in item:
+                                    item['completion_criteria'] = item['description']
+                                valid_subtasks.append(item)
+                        if valid_subtasks:
+                            return valid_subtasks
+                except (json.JSONDecodeError, ValueError):
+                    # JSON is incomplete or invalid, fall back to single task
+                    logger.warning("Failed to parse JSON from initial decomposition, falling back to single task")
 
         except Exception as e:
-            logger.warning(f"Failed to parse initial decomposition: {e}")
+            logger.exception(f"Failed to parse initial decomposition: {e}")
 
         # Fallback: just one task with the whole goal
         logger.info("Falling back to single task decomposition")

@@ -42,6 +42,13 @@ class Update(BaseTool):
         replace_text = parameters.get("replace_text")
         encoding = parameters.get("encoding", "utf-8")
 
+        # Check required parameters
+        if file_path is None:
+            return ToolResult(
+                success=False,
+                content="Missing required parameter 'file_path'",
+            )
+
         # Validate mode parameter
         valid_modes = ["append", "replace", "search_replace"]
         if mode not in valid_modes:
@@ -116,6 +123,7 @@ class Update(BaseTool):
                 )
 
         except Exception as e:
+            logger.exception(f"Error updating file: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error updating file: {str(e)}"

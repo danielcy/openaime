@@ -45,6 +45,13 @@ class ShellExec(BaseTool):
         timeout = parameters.get("timeout", self.DEFAULT_TIMEOUT)
         cwd = parameters.get("cwd")
 
+        # Check required parameters
+        if command is None:
+            return ToolResult(
+                success=False,
+                content="Missing required parameter 'command'",
+            )
+
         try:
             # Run shell command asynchronously (create new process group)
             process = await asyncio.create_subprocess_shell(
@@ -227,6 +234,7 @@ class ShellExec(BaseTool):
                 )
 
         except Exception as e:
+            logger.exception(f"Error executing command: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error executing command: {str(e)}"

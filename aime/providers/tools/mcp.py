@@ -12,6 +12,7 @@ Uses the official MCP Python SDK (mcp package).
 
 from __future__ import annotations
 
+import logging
 import asyncio
 import json
 from typing import Any, Optional
@@ -24,6 +25,8 @@ from mcp.client.session_group import (
 from mcp.types import Tool, CallToolRequestParams, ListToolsResult, CallToolResult
 from aime.base.tool import BaseTool, ToolResult, ToolBundle, Toolkit
 from aime.base.types import ArtifactReference
+
+logger = logging.getLogger(__name__)
 
 
 class MCPTool(BaseTool):
@@ -76,6 +79,7 @@ class MCPTool(BaseTool):
         try:
             return await self._client.execute_tool(self._tool_info.name, parameters)
         except Exception as e:
+            logger.exception(f"Error executing tool {self.name}: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error executing tool {self.name}: {str(e)}",
@@ -228,6 +232,7 @@ class MCPClient:
             result = await self._group.call_tool(tool_name, parameters)
             return self._parse_mcp_result(result, tool_name)
         except Exception as e:
+            logger.exception(f"Error executing tool {tool_name}: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error executing tool {tool_name}: {str(e)}",
@@ -288,6 +293,7 @@ class MCPClient:
                 artifact=None,
             )
         except Exception as e:
+            logger.exception(f"Error parsing tool {tool_name} result: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error parsing tool {tool_name} result: {str(e)}",
@@ -320,6 +326,7 @@ class MCPClient:
 
             return None
         except Exception as e:
+            logger.exception(f"Error parsing artifact: {str(e)}")
             return None
 
 

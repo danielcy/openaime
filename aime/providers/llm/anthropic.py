@@ -1,6 +1,7 @@
 """Anthropic LLM provider implementation."""
 
 from __future__ import annotations
+import json
 from typing import Any, Optional, AsyncIterator
 from anthropic import AsyncAnthropic
 
@@ -15,6 +16,7 @@ class AnthropicLLM(BaseLLM):
         api_key: Optional[str] = None,
         model: str = "claude-3-5-sonnet-20241022",
         base_url: Optional[str] = None,
+        max_tokens: int = 32000,
     ):
         """Initialize the Anthropic LLM provider.
 
@@ -23,8 +25,10 @@ class AnthropicLLM(BaseLLM):
                 environment variable.
             model: The model to use. Defaults to "claude-3-5-sonnet-20241022".
             base_url: Optional base URL for Anthropic-compatible API endpoints.
+            max_tokens: Maximum number of tokens to generate. Defaults to 32000.
         """
         self.model = model
+        self.max_tokens = max_tokens
         self.client = AsyncAnthropic(api_key=api_key, base_url=base_url)
 
     async def complete(
@@ -51,7 +55,7 @@ class AnthropicLLM(BaseLLM):
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": anthropic_messages,
-            "max_tokens": 4096,
+            "max_tokens": self.max_tokens,
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
@@ -102,7 +106,7 @@ class AnthropicLLM(BaseLLM):
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": anthropic_messages,
-            "max_tokens": 4096,
+            "max_tokens": self.max_tokens,
             "stream": True,
         }
         if temperature is not None:
@@ -112,18 +116,52 @@ class AnthropicLLM(BaseLLM):
 
         stream = await self.client.messages.create(**kwargs)
 
+        # Accumulator for tool call input: accumulated input JSON
+        _tool_input_accum = ""
+        _tool_name: Optional[str] = None
+
         async for chunk in stream:
             content = None
             tool_call_delta = None
             is_final = False
 
-            if chunk.type == "content_block_delta":
+            if chunk.type == "content_block_start":
+                # content_block_start contains the name for tool_use blocks
+                if hasattr(chunk.content_block, "type") and chunk.content_block.type == "tool_use":
+                    if hasattr(chunk.content_block, "name"):
+                        _tool_name = chunk.content_block.name
+            elif chunk.type == "content_block_delta":
                 if hasattr(chunk.delta, "text"):
                     content = chunk.delta.text
                 elif hasattr(chunk.delta, "input"):
                     # Handle tool call delta (input JSON for tool use)
-                    name = chunk.delta.name if hasattr(chunk.delta, "name") else ""
-                    tool_call_delta = ToolCall(name=name, parameters=chunk.delta.input)
+                    # Accumulate the incremental input
+                    if hasattr(chunk.delta, "input"):
+                        _tool_input_accum += chunk.delta.input
+
+                    # Only try to parse when we have some content
+                    if _tool_input_accum:
+                        try:
+                            params = json.loads(_tool_input_accum)
+                            if _tool_name is not None:
+                                tool_call_delta = ToolCall(name=_tool_name, parameters=params)
+                                # Reset after successful parse for next tool call
+                                _tool_input_accum = ""
+                                _tool_name = None
+                        except json.JSONDecodeError:
+                            # JSON is still incomplete, continue accumulating in next chunk
+                            pass
+            elif chunk.type == "content_block_stop":
+                # End of a content block - if we have accumulated input and name, try to parse it
+                if _tool_input_accum and _tool_name is not None:
+                    try:
+                        params = json.loads(_tool_input_accum) if _tool_input_accum else {}
+                        tool_call_delta = ToolCall(name=_tool_name, parameters=params)
+                        _tool_input_accum = ""
+                        _tool_name = None
+                    except json.JSONDecodeError:
+                        # If we can't parse even at the end, leave as is
+                        pass
             elif chunk.type == "message_delta":
                 is_final = chunk.delta.stop_reason is not None
             elif chunk.type == "message_stop":

@@ -167,7 +167,7 @@ class DynamicActor:
 
             except Exception as e:
                 error_msg = f"Exception during execution: {str(e)}"
-                logger.error(f"Actor {self.actor_id} {error_msg}")
+                logger.exception(f"Actor {self.actor_id} {error_msg}")
                 await self.progress.update_task_status(
                     self.task.id, TaskStatus.FAILED, error_msg
                 )
@@ -279,6 +279,12 @@ class DynamicActor:
             full_content: list[str] = []
             tool_calls: list[ToolCall] = []
 
+            # Throttling for UI performance: accumulate content and update in batches
+            # This prevents UI from locking up when many tokens arrive quickly
+            # Initialize last_update_time to 0 so first chunk is always emitted immediately
+            accumulated_content: list[str] = []
+            last_update_time = 0.0
+
             async for chunk in self.llm.complete_stream(
                 self._history,
                 temperature=self.config.temperature,
@@ -286,14 +292,32 @@ class DynamicActor:
             ):
                 if chunk.content is not None:
                     full_content.append(chunk.content)
-                    # Send incremental output event for TUI real-time display
-                    if self._emit_event:
+                    accumulated_content.append(chunk.content)
+
+                    # Only emit incremental update if:
+                    # 1. It's been at least 50ms since last update, OR
+                    # 2. We've accumulated more than 200 characters already
+                    # 3. This is the final chunk
+                    # This batch processing drastically reduces UI updates
+                    # But still ensures smooth incremental display for slow output
+                    current_time = asyncio.get_event_loop().time()
+                    total_accumulated = sum(len(s) for s in accumulated_content)
+                    if self._emit_event and (
+                        (current_time - last_update_time) >= 0.05
+                        or total_accumulated >= 200
+                        or chunk.is_final
+                    ):
+                        full_text_so_far = "".join(full_content)
+                        # Combine all accumulated content for single update
+                        combined_text = "".join(accumulated_content)
                         self._emit_event(EventType.ACTOR_INCREMENTAL_OUTPUT, {
                             "actor_id": self.actor_id,
                             "actor_name": self.name,
-                            "text": chunk.content,
-                            "full_text_so_far": "".join(full_content),
+                            "text": combined_text,
+                            "full_text_so_far": full_text_so_far,
                         })
+                        accumulated_content = []
+                        last_update_time = current_time
                 if chunk.tool_call_delta is not None:
                     tool_calls.append(chunk.tool_call_delta)
                 # is_final indicates the last chunk - no special action needed until streaming completes

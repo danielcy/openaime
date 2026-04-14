@@ -120,15 +120,17 @@ An existing actor can be reused if its role, description, and available tools ma
 
 # Instructions
 Analyze the new task requirements and compare them against the capabilities of each existing actor.
-- **Prioritize reusing existing actors when capabilities are ROUGHLY matching** — you do NOT need an exact match.
-- **Reuse is more efficient than creating new actors** — only create new when no existing actor is even close.
+- **ALWAYS REUSE when capabilities are ROUGHLY matching** — you do NOT need an exact match.
+- **If there is already an actor with the SAME NAME or VERY SIMILAR role/capability, YOU MUST REUSE IT.** Do NOT create a new one with the same capability.
+- **Reuse is ALWAYS better than creating new actors** — creating new actors wastes resources and hurts performance. Only create new when NO existing actor has even roughly matching capabilities.
 - If one existing actor is clearly suitable, output ONLY its actor_id in JSON format.
 - If no existing actor is suitable (need to create new), output null.
 
-"Roughly matching" examples:
+"Roughly matching" examples (ALWAYS reuse in these cases):
 - If existing actor is "Python Developer" and new task is modifying Python code → REUSE
 - If existing actor is "fiction Writer" and new task is writing a blog post → REUSE
-- Only create new when the capability is completely different
+- **If existing actor has the SAME NAME or very similar specialization as what the new task needs → ALWAYS REUSE**
+- Only create new when the capability is completely different (e.g. existing is "Python Developer" and new task is "design UI graphics")
 
 # Output Format
 {{"actor_id": "actor-id-or-null"}}
@@ -140,13 +142,17 @@ Analyze the new task requirements and compare them against the capabilities of e
             response = await self.base_llm.complete(messages, temperature=0.0)
 
             import json
+            import re
             content = response.content.strip()
             # Extract JSON if it has extra text
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(0)
-            parsed = json.loads(content)
+            try:
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    content = json_match.group(0)
+                parsed = json.loads(content)
+            except (json.JSONDecodeError, ValueError, AttributeError) as e:
+                logger.warning(f"Failed to decode JSON from LLM actor selection: {content[:100]}... Error: {e}")
+                return None
             selected_id = parsed.get("actor_id")
 
             if selected_id is None or selected_id == "null":
@@ -166,7 +172,7 @@ Analyze the new task requirements and compare them against the capabilities of e
                 logger.warning(f"LLM selected non-existent actor_id: {selected_id}, creating new")
                 return None
         except Exception as e:
-            logger.warning(f"Failed to parse LLM actor selection: {e}, creating new")
+            logger.exception(f"Failed to parse LLM actor selection: {e}, creating new")
             return None
 
     async def create_actor(
@@ -199,14 +205,23 @@ Analyze the new task requirements and compare them against the capabilities of e
         # Check if we can reuse an existing actor
         existing_actor = await self._select_actor_for_task(task)
         if existing_actor is not None:
-            # Update the task on the reused actor and reset state
-            existing_actor.task = task
-            existing_actor.planner = planner
-            existing_actor.progress = progress
+            # Don't reuse if the actor is currently running (can't interrupt an active task)
             async with existing_actor._lock:
-                existing_actor._running = False
-            existing_actor._history.clear()
-            logger.info(f"ActorFactory reusing existing actor: {existing_actor.actor_id}")
+                if existing_actor._running:
+                    logger.warning(f"ActorFactory: Actor {existing_actor.actor_id} is currently running, creating new actor instead of reusing")
+                    existing_actor = None
+            if existing_actor is None:
+                # Fall through to create new
+                pass
+            else:
+                # Update the task on the reused actor and reset state
+                existing_actor.task = task
+                existing_actor.planner = planner
+                existing_actor.progress = progress
+                async with existing_actor._lock:
+                    existing_actor._running = False
+                existing_actor._history.clear()
+                logger.info(f"ActorFactory reusing existing actor: {existing_actor.actor_id}")
             # Re-match skills for the new task
             if self._skill_registry is not None:
                 matched_skills = await self._skill_registry.match(

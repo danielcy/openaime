@@ -96,6 +96,7 @@ class AskUserQuestion(BaseTool):
                 content="Question cancelled"
             )
         except Exception as e:
+            logger.exception(f"Error asking question: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error asking question: {str(e)}"

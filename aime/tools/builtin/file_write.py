@@ -32,6 +32,18 @@ class Write(BaseTool):
         content = parameters.get("content")
         encoding = parameters.get("encoding", "utf-8")
 
+        # Check required parameters
+        if file_path is None:
+            return ToolResult(
+                success=False,
+                content="Missing required parameter 'file_path'",
+            )
+        if content is None:
+            return ToolResult(
+                success=False,
+                content="Missing required parameter 'content'",
+            )
+
         try:
             # Create parent directories if they don't exist
             directory = os.path.dirname(file_path)
@@ -48,6 +60,7 @@ class Write(BaseTool):
             )
 
         except Exception as e:
+            logger.exception(f"Error writing file: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error writing file: {str(e)}"

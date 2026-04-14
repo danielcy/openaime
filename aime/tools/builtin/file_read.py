@@ -29,6 +29,13 @@ class Read(BaseTool):
         file_path = parameters.get("file_path")
         encoding = parameters.get("encoding", "utf-8")
 
+        # Check required parameters
+        if file_path is None:
+            return ToolResult(
+                success=False,
+                content="Missing required parameter 'file_path'",
+            )
+
         try:
             async with aiofiles.open(file_path, mode="r", encoding=encoding) as f:
                 content = await f.read()
@@ -49,6 +56,7 @@ class Read(BaseTool):
                 content=f"Could not decode file with encoding {encoding}. Try specifying a different encoding."
             )
         except Exception as e:
+            logger.exception(f"Error reading file: {str(e)}")
             return ToolResult(
                 success=False,
                 content=f"Error reading file: {str(e)}"

@@ -327,7 +327,7 @@ class OpenAime:
                 logger.debug(f"Restoring original working directory: {original_cwd}")
                 os.chdir(original_cwd)
             except Exception as e:
-                logger.error(f"Failed to restore working directory: {e}")
+                logger.exception(f"Failed to restore working directory: {e}")
 
             # Cleanup resources - keep components for session continuity
             logger.debug("Cleaning up resources")
@@ -621,5 +621,5 @@ class OpenAime:
             response = await self.llm.complete(messages)
             return response.content or "Unable to generate summary"
         except Exception as e:
-            logger.warning(f"Failed to generate execution summary: {e}")
+            logger.exception(f"Failed to generate execution summary: {e}")
             return "Failed to generate summary"
