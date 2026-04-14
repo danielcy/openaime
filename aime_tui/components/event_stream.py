@@ -1,7 +1,7 @@
 """Event stream pane component for AIME TUI."""
 
 import json
-from typing import Any
+from typing import Any, Optional
 from textual.widgets import RichLog
 from rich.text import Text
 from rich.syntax import Syntax
@@ -37,6 +37,7 @@ class EventStream(RichLog):
             **kwargs
         )
         self._config = config
+        self._current_incremental: Optional[dict[str, Any]] = None
         # Display workspace info at the top if provided
         if workspace:
             self._write_workspace_header(workspace)
@@ -83,6 +84,9 @@ class EventStream(RichLog):
 
         # Always add a blank line after each event for consistent spacing between events
         self.write(Text(""))
+
+        # Reset incremental tracker when a complete event is added
+        self._current_incremental = None
 
     def _write_workspace_header(self, workspace: str) -> None:
         """Write workspace information header at the top of the event stream.
@@ -553,14 +557,36 @@ class EventStream(RichLog):
         return parts
 
     def add_incremental_output(self, event_data: dict[str, Any]) -> None:
-        """Add incremental actor output to the stream for real-time display.
+        """Add or update incremental thought output in real-time.
+
+        Updates the last written entry when continuing the same incremental thought
+        from the same actor, providing smooth real-time display.
 
         Args:
-            event_data: Dictionary containing incremental output data
+            event_data: Contains actor_id, actor_name, text, full_text_so_far
         """
-        output = event_data.get("output", "")
-        if output:
-            self.write(Text(output))
+        from textual.widgets import Static
+
+        actor_name = event_data.get("actor_name", "actor")
+        full_text = event_data.get("full_text_so_far", "")
+
+        # Check if we're continuing an existing incremental output from the same actor
+        if (self._current_incremental is not None and
+            self._current_incremental.get("actor_id") == event_data.get("actor_id")):
+            # Update existing - RichLog doesn't support updating in place directly
+            # We need to clear the last line and write new content
+            if self.children:
+                last_child = self.children[-1]
+                if isinstance(last_child, Static):
+                    last_child.update(f"🤖 **{actor_name}**\n{full_text}")
+            self._current_incremental = event_data
+        else:
+            # Start a new incremental output entry
+            self._current_incremental = event_data
+            self.write(f"🤖 **{actor_name}**\n{full_text}")
+
+        # Scroll to bottom to show latest content
+        self.scroll_end(animate=False)
 
     def _format_multiline_text(self, text: str) -> Text:
         """Format multiline text with proper indentation.
