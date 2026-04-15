@@ -1,5 +1,7 @@
 # OpenAime
 
+[中文版](./README_zh.md) | English
+
 Open-Source implementation of the **AIME (Autonomous Interactive Execution Engine)** framework for LLM-based autonomous software engineering agents.
 
 ## What is AIME
