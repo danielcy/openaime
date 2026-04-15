@@ -1,8 +1,11 @@
 from __future__ import annotations
+import logging
 import os
 import aiofiles
 from typing import Any
 from aime.base.tool import BaseTool, ToolResult
+
+logger = logging.getLogger(__name__)
 
 
 class Update(BaseTool):

@@ -2,15 +2,14 @@
 Tests for DynamicActor component.
 """
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
 from aime.components.planner import Planner
 from aime.base.config import ActorConfig
 from aime.base.llm import BaseLLM, Message, LLMResponse, ToolCall, LLMResponseChunk
-from aime.base.tool import Toolkit, ToolBundle, BaseTool, ToolResult
+from aime.base.tool import Toolkit, BaseTool, ToolResult
 from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
 from aime.base.types import Task, TaskStatus
 
@@ -255,7 +254,7 @@ async def test_actor_tool_selection():
 
     # We need to limit iterations since we're not testing full completion
     config.max_iterations = 1
-    result = await actor.run()
+    await actor.run()
 
     # Verify task was processed (will fail due to max iterations, but that's expected)
     updated_task = await progress.get_task(task.id)

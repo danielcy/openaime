@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import json
-from typing import Any, Optional, AsyncIterator
+from typing import Any, Optional, AsyncIterator, List
 from anthropic import AsyncAnthropic
 
 from aime.base.llm import BaseLLM, Message, ToolCall, LLMResponse, LLMResponseChunk

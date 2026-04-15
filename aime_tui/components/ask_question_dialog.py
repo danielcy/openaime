@@ -11,7 +11,7 @@ from textual.widgets import (
     Label,
     RadioButton
 )
-from textual.containers import Vertical, Container
+from textual.containers import Container
 from textual.reactive import reactive
 from aime.base.user_question import UserQuestionManager
 
@@ -81,7 +81,6 @@ class AskQuestionDialog(Screen):
     def on_mount(self) -> None:
         """Mount the options when dialog is mounted."""
         container = self.query_one("#question-options", Container)
-        question_idx = 0
         is_multi = self.question.get("multiSelect", False)
         options = self.question.get("options", [])
 
@@ -98,7 +97,7 @@ class AskQuestionDialog(Screen):
             # "Other" input field
             other_input = Input(
                 placeholder="Please specify...",
-                id=f"other-input-0",
+                id="other-input-0",
                 classes="other-input hidden"
             )
             container.mount(other_input)
@@ -118,7 +117,7 @@ class AskQuestionDialog(Screen):
             # "Other" input field
             other_input = Input(
                 placeholder="Please specify...",
-                id=f"other-input-0",
+                id="other-input-0",
                 classes="other-input hidden"
             )
             container.mount(other_input)
@@ -162,7 +161,6 @@ class AskQuestionDialog(Screen):
 
     async def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Handle single choice radio button changes."""
-        question_idx = 0
         option_idx = event.index if event.index is not None else -1
 
         # Update answer
@@ -175,7 +173,7 @@ class AskQuestionDialog(Screen):
         if option_idx >= 0:
             options = self.question.get("options", [])
             option = options[option_idx]
-            other_input = self.query_one(f"#other-input-0", Input)
+            other_input = self.query_one("#other-input-0", Input)
             if option.get("isOther", False):
                 other_input.remove_class("hidden")
             else:
@@ -199,7 +197,7 @@ class AskQuestionDialog(Screen):
 
         # Check if "Other" is selected
         options = self.question.get("options", [])
-        other_input = self.query_one(f"#other-input-0", Input)
+        other_input = self.query_one("#other-input-0", Input)
         has_other = any(
             options[idx].get("isOther", False) for idx in self.answers
         )
@@ -232,7 +230,7 @@ class AskQuestionDialog(Screen):
         for opt_idx in self.answers:
             option = options[opt_idx]
             if option.get("isOther", False):
-                other_input = self.query_one(f"#other-input-0", Input)
+                other_input = self.query_one("#other-input-0", Input)
                 if other_input.value.strip():
                     final_answers[question_id].append(other_input.value.strip())
             else:

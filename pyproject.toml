@@ -1,9 +1,13 @@
 [project]
 name = "openaime"
 version = "0.1.0"
-description = "OpenAime: Fully-autonomous Multi-agent Framework"
+description = "OpenAime: Fully-autonomous LLM Multi-agent Framework for Software Engineering"
 readme = "README.md"
-requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [
+    { name = "daniel.cao", email = "448219947@qq.com" },
+]
+requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
     "openai>=1.0",
@@ -13,7 +17,30 @@ dependencies = [
     "mcp>=1.0",
     "volcengine-python-sdk[ark]>=5.0.23",
     "pyyaml>=6.0",
+    "build>=1.4.3",
+    "twine>=6.2.0",
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["ai", "agent", "llm", "autonomous", "multi-agent", "claude", "openai"]
+
+[project.urls]
+Homepage = "https://github.com/danielcy/openaime"
+Repository = "https://github.com/danielcy/openaime"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -25,6 +52,8 @@ dev = [
     "pytest-cov>=5.0",
     "black>=24.0",
     "ruff>=0.5",
+    "build",
+    "twine",
 ]
 tui = [
     "textual>=0.43.0",

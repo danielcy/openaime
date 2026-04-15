@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.widgets import ListView, ListItem, Label
 from textual.containers import Vertical
 from rich.text import Text
-from aime.base import SessionInfo, get_default_session_manager
+from aime.base import get_default_session_manager
 
 
 class SessionListDialog(Screen):

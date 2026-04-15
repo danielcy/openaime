@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 import tempfile
 import os
 from aime.tools.builtin import ShellExec

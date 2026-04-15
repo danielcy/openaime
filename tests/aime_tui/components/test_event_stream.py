@@ -1,4 +1,3 @@
-import pytest
 from aime_tui.components.event_stream import EventStream
 from aime_tui.config import TUIConfig
 from aime.base.events import AimeEvent, EventType

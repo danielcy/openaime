@@ -1,7 +1,6 @@
 """Tests for SessionManager class."""
 import time
-import pytest
-from aime.base.session_manager import SessionManager, get_default_session_manager
+from aime.base.session_manager import SessionManager
 from aime.base.session_storage import SessionStorage
 from aime.base.session import SessionInfo
 from aime.base.types import ChatMessage

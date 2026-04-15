@@ -1,6 +1,5 @@
 """Tests for ActorPane component."""
 
-import pytest
 from datetime import datetime
 from aime.base.types import ActorRecord
 from aime_tui.components.actor_pane import ActorPane

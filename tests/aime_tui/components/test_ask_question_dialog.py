@@ -1,8 +1,7 @@
 """Tests for AskQuestionDialog component."""
 
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock
 import pytest
-from textual.widgets import Button
 from aime_tui.components.ask_question_dialog import AskQuestionDialog
 
 

@@ -1,6 +1,5 @@
 """Tests for configuration classes in aime.base.config."""
 
-import pytest
 from aime.base.config import (
     PlannerConfig,
     ActorConfig,

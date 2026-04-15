@@ -9,7 +9,6 @@ These tests verify the MCP tool integration functionality, including:
 """
 
 import pytest
-import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 from mcp.types import Tool
 from aime.providers.tools.mcp import MCPClient, MCPTool, MCPStdioClient
@@ -329,17 +328,11 @@ class TestIntegration:
                 class EchoContent:
                     text = "Echo: test message"
                 self.content = [EchoContent()]
+                self.isError = False
 
         mock_group_instance.connect_to_server = AsyncMock()
 
         # MCP SDK uses call_tool, not execute_tool
-        class EchoResult:
-            def __init__(self):
-                class EchoContent:
-                    text = "Echo: test message"
-                self.content = [EchoContent()]
-                self.isError = False
-
         mock_group_instance.call_tool = AsyncMock(return_value=EchoResult())
         mock_session_group.return_value = mock_group_instance
 

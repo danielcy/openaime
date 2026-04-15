@@ -1,6 +1,5 @@
 """Tests for InputBox component."""
 
-import pytest
 from aime_tui.components.input_box import InputBox
 from aime_tui.config import TUIConfig
 
@@ -19,7 +18,8 @@ class TestInputBox:
     def test_input_box_with_submit_callback(self):
         """Test that InputBox accepts and stores a submit callback."""
         config = TUIConfig()
-        callback = lambda: None
+        def callback() -> None:
+            pass
         input_box = InputBox(config, on_submit=callback)
 
         assert hasattr(input_box, "_on_submit")

@@ -13,7 +13,7 @@ from typing import Optional, List, Any, Callable
 
 from aime.base.types import Task, ActorRecord
 from aime.base.llm import BaseLLM
-from aime.base.tool import BaseTool, Toolkit, ToolBundle
+from aime.base.tool import Toolkit, ToolBundle
 from aime.base.config import ActorConfig
 from aime.base.knowledge import BaseKnowledge
 from aime.base.events import EventType

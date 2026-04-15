@@ -11,7 +11,7 @@ Controls logging verbosity:
 """
 import logging
 import sys
-from typing import Optional, Literal
+from typing import Literal
 
 
 class ColoredFormatter(logging.Formatter):

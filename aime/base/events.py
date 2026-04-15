@@ -8,7 +8,7 @@ management, and actor execution.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Optional, Any, Awaitable
+from typing import Callable, Any, Awaitable
 
 
 class EventType(str, Enum):

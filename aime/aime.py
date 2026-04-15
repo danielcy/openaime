@@ -35,12 +35,10 @@ from aime.base.knowledge import BaseKnowledge, SimpleInMemoryKnowledge
 from aime.base.events import EventType, AimeEvent, EventCallback
 from aime.components.planner import Planner
 from aime.components.actor_factory import ActorFactory
-from aime.components.actor import DynamicActor
 from aime.components.progress_module import ProgressModule
-from aime.base.types import PlannerOutput, Task, TaskStatus, ChatMessage
+from aime.base.types import PlannerOutput, TaskStatus, ChatMessage
 from aime.base.skill import SkillRegistry
 from aime.base.session_manager import SessionManager, get_default_session_manager
-from aime.base.session import SessionInfo
 
 logger = logging.getLogger(__name__)
 

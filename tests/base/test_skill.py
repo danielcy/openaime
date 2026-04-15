@@ -2,8 +2,7 @@
 import os
 import tempfile
 import time
-import pytest
-from aime.base.skill import SkillRegistry, SkillMetadata, Skill
+from aime.base.skill import SkillRegistry
 
 
 def get_test_fixtures_path():

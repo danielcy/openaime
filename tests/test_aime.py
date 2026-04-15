@@ -6,7 +6,6 @@ import os
 import tempfile
 import unittest
 from unittest.mock import Mock, AsyncMock
-import asyncio
 
 from aime.aime import OpenAime
 from aime.base.config import AimeConfig

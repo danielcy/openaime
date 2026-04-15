@@ -8,7 +8,6 @@ This module handles the actual file system operations:
 - Deleting sessions
 """
 import json
-import os
 import uuid
 from pathlib import Path
 from typing import Optional, List

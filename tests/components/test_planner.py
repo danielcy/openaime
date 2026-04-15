@@ -3,7 +3,6 @@ Tests for Planner component.
 """
 import pytest
 from typing import Any
-from unittest.mock import MagicMock, AsyncMock
 from aime.components.planner import Planner
 from aime.components.progress_module import ProgressModule
 from aime.base.types import PlannerOutput, TaskStatus
@@ -143,7 +142,7 @@ async def test_plan_step_with_some_completed_tasks():
 
     # Add some tasks and mark them as completed
     task1 = await progress.add_task("Task 1", "Complete task 1")
-    task2 = await progress.add_task("Task 2", "Complete task 2")
+    await progress.add_task("Task 2", "Complete task 2")
     await progress.update_task_status(task1.id, TaskStatus.COMPLETED)
 
     output = await planner.plan_step(progress)
@@ -443,7 +442,6 @@ async def test_progress_module_delete_task():
 
 def test_add_user_message():
     """Test adding user messages to chat history."""
-    from aime.base.types import ChatMessage
 
     mock_llm = MockLLM()
     config = PlannerConfig()
@@ -463,7 +461,6 @@ def test_add_user_message():
 
 def test_add_assistant_message():
     """Test adding assistant messages to chat history."""
-    from aime.base.types import ChatMessage
 
     mock_llm = MockLLM()
     config = PlannerConfig()
@@ -516,7 +513,6 @@ def test_load_chat_history():
 
 def test_load_chat_history_empty():
     """Test loading empty chat history."""
-    from aime.base.types import ChatMessage
 
     mock_llm = MockLLM()
     config = PlannerConfig()

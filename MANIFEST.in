@@ -1,0 +1,2 @@
+# Include static assets for TUI
+include aime_tui/assets/*.tcss

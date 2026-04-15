@@ -1,6 +1,5 @@
 """Tests for SessionStorage class."""
 import os
-import pytest
 from aime.base.session_storage import SessionStorage
 from aime.base.session import SessionInfo
 from aime.base.types import ChatMessage

@@ -1,5 +1,5 @@
 import pytest
-from typing import Any, Optional
+from typing import Any
 from aime.base.tool import BaseTool, ToolResult, ToolBundle, Toolkit
 from aime.base.types import ArtifactReference
 

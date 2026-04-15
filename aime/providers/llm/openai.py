@@ -3,7 +3,7 @@
 from __future__ import annotations
 import json
 import logging
-from typing import Any, Optional, AsyncIterator
+from typing import Any, Optional, AsyncIterator, List
 from openai import AsyncOpenAI
 
 from aime.base.llm import BaseLLM, Message, ToolCall, LLMResponse, LLMResponseChunk

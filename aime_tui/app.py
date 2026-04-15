@@ -11,7 +11,7 @@ controlling OpenAime execution. Features include:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, List, Any
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -24,8 +24,6 @@ from aime_tui.components import EventStream, ProgressPane, ActorPane, InputBox, 
 from aime.base.events import AimeEvent, EventType
 from aime.aime import OpenAime
 from aime.base.types import Task, ActorRecord
-from aime.base.session import SessionInfo
-from aime.base.session_manager import get_default_session_manager
 from aime_tui.components.session_list_dialog import SessionListDialog
 
 
@@ -49,7 +47,6 @@ class LogViewerScreen(Screen):
 
     def compose(self) -> ComposeResult:
         """Compose the log viewer with a scrollable text area."""
-        from textual.widgets import Static
         from textual.containers import Vertical
 
         logs_text = "\n".join(self._logs)

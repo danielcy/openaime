@@ -1,7 +1,6 @@
 """Tests for StatusBar component."""
 
-import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from aime_tui.components.status_bar import StatusBar
 from aime_tui.config import TUIConfig
 

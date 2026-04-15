@@ -4,7 +4,6 @@ from typing import Any, List, Dict, Optional
 from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
 from rich.text import Text
-from rich.style import Style
 
 from aime_tui.config import TUIConfig
 from aime.base.types import Task, TaskStatus
@@ -56,7 +55,6 @@ class ProgressPane(Tree):
         self.clear()
 
         # Build task hierarchy
-        task_map: Dict[str, Task] = {task.id: task for task in tasks}
         children_map: Dict[Optional[str], List[Task]] = {}
 
         # Group tasks by parent

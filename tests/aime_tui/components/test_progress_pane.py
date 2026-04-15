@@ -1,7 +1,5 @@
 """Tests for ProgressPane component."""
 
-import pytest
-from datetime import datetime
 from aime.base.types import Task, TaskStatus
 from aime_tui.components.progress_pane import ProgressPane
 from aime_tui.config import TUIConfig

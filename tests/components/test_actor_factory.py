@@ -1,6 +1,6 @@
 import pytest
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from aime.components.actor_factory import ActorFactory
 from aime.components.actor import DynamicActor
@@ -9,7 +9,7 @@ from aime.components.progress_module import ProgressModule
 from aime.base.types import Task, TaskStatus, ActorRecord
 from aime.base.config import ActorConfig
 from aime.base.llm import BaseLLM, Message, LLMResponse
-from aime.base.tool import Toolkit, ToolBundle, BaseTool
+from aime.base.tool import ToolBundle, BaseTool
 from aime.base.knowledge import BaseKnowledge
 
 

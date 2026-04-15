@@ -3,12 +3,14 @@
 Allows Actors to prompt users with multiple-choice questions to get their decision.
 The tool emits an event that the TUI listens for and responds to via a dialog.
 """
+import logging
 import asyncio
 import json
 from typing import Any
 from aime.base.tool import BaseTool, ToolResult
-from aime.base.events import EventType
 from aime.base.user_question import UserQuestionManager
+
+logger = logging.getLogger(__name__)
 
 
 class AskUserQuestion(BaseTool):
