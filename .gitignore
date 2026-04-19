@@ -22,6 +22,9 @@ wheels/
 *.manifest
 *.spec
 
+# macOS
+.DS_Store
+
 # Virtual environment
 .venv/
 venv/

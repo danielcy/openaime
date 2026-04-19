@@ -15,7 +15,7 @@ class ShellExec(BaseTool):
     """
 
     # Default configuration
-    DEFAULT_TIMEOUT = 60
+    DEFAULT_TIMEOUT = 60  # 5 minutes
     MAX_OUTPUT_BYTES = 10 * 1024 * 1024  # 10MB
 
     @property
@@ -26,7 +26,10 @@ class ShellExec(BaseTool):
     def description(self) -> str:
         return (
             "Execute shell commands and return combined stdout + stderr output. "
-            "Supports timeout (default: 60s), working directory, and output size limiting (default: 10MB). "
+            "Supports timeout (default: 60s = 1 minutes), working directory, and output size limiting (default: 10MB). "
+            "Runs in non-interactive mode: automatically sets DEBIAN_FRONTEND=noninteractive "
+            "and auto adds -y/--yes flag to common package manager commands. "
+            "**IMPORTANT: Avoid interactive commands that require user input.** "
             "Improved timeout handling returns captured output before termination. "
             "More reliable process cleanup kills entire process group."
         )
@@ -36,11 +39,64 @@ class ShellExec(BaseTool):
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "Shell command to execute"},
-                "timeout": {"type": "number", "description": "Timeout in seconds (default: 60)"},
+                "timeout": {"type": "number", "description": "Timeout in seconds (default: 60 = 1 minutes)"},
                 "cwd": {"type": "string", "description": "Working directory for command execution"}
             },
             "required": ["command"]
         }
+
+    def _auto_add_yes_flag(self, command: str) -> str:
+        """Automatically add -y/--yes flag to common package manager commands to avoid interactive prompts."""
+        # List of commands that need auto yes when installing
+        auto_yes_patterns = [
+            # apt/deb
+            "apt-get install",
+            "apt install",
+            "apt-get remove",
+            "apt remove",
+            "apt-get upgrade",
+            "apt upgrade",
+            # dpkg
+            "dpkg -i",
+            # yum/rpm
+            "yum install",
+            "yum remove",
+            "dnf install",
+            "dnf remove",
+            "zypper install",
+            "zypper remove",
+            # brew
+            "brew install",
+            "brew upgrade",
+            # npm
+            "npm install",
+            # yarn
+            "yarn add",
+            # pip
+            "pip install",
+            # conda
+            "conda install",
+            "create-vite",
+        ]
+
+        modified = command
+        for pattern in auto_yes_patterns:
+            if pattern in modified:
+                # Only add -y/--yes if not already present
+                if "-y" not in modified and "--yes" not in modified:
+                    # Use the right flag for the command
+                    if pattern in ["apt-get", "apt", "yum", "dnf", "zypper", "dpkg", "brew", "pip"]:
+                        modified = modified.replace(pattern, f"{pattern} -y")
+                    elif pattern == "conda":
+                        modified = modified.replace(pattern, f"{pattern} --yes")
+                    elif pattern == "create-vite":
+                        # create-vite defaults to yes if we just press enter
+                        # Inject "yes" at the end
+                        if " | " not in modified:
+                            modified = f"yes | {modified}"
+                    else:
+                        modified = modified.replace(pattern, f"{pattern} -y")
+        return modified
 
     async def execute(self, parameters: dict[str, Any]) -> ToolResult:
         command = parameters.get("command")
@@ -54,13 +110,21 @@ class ShellExec(BaseTool):
                 content="Missing required parameter 'command'",
             )
 
+        # Auto add yes flag to package manager commands for non-interactive
+        modified_command = self._auto_add_yes_flag(command)
+
         try:
             # Run shell command asynchronously (create new process group)
+            # Set non-interactive environment variables
+            import os
+            env = dict(os.environ)
+            env["DEBIAN_FRONTEND"] = "noninteractive"
             process = await asyncio.create_subprocess_shell(
-                command,
+                modified_command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=cwd,
+                env=env,
                 start_new_session=True  # Create new process group for better cleanup
             )
 
