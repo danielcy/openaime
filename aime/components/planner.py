@@ -353,6 +353,7 @@ class Planner:
             "# Important Guidelines\n"
             "- **MINIMIZE number of subtasks**: Create AS FEW new subtasks as possible. PREFER larger, more comprehensive tasks over many tiny unnecessary subtasks.\n"
             "- **Decompose ONLY when genuinely needed**: Only add new subtasks when they are genuinely needed to achieve the goal. If unsure, DO NOT add a new subtask.\n"
+            "- **DO NOT duplicate existing tasks**: If a subtask with the same description already exists in the task list (especially pending tasks), **DO NOT add it again**. Pending tasks are already waiting to be executed - they don't need to be added a second time.\n"
             "- **ADD IN LOGICAL EXECUTION ORDER**: When adding multiple new subtasks, add tasks that need to be executed FIRST before tasks that depend on them.\n"
             "- **After adding all needed subtasks, you MUST dispatch**: Once you have added all the necessary subtasks that are ready to execute, you MUST include a `dispatch_subtask` action to start the execution of one pending subtask. **DO NOT** just add subtasks and stop - you must dispatch to make progress.\n"
             "- **Handle failures**: If a task fails, you can mark it as failed and revise the plan accordingly.\n"
